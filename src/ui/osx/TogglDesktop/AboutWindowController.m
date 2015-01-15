@@ -11,7 +11,6 @@
 #import "toggl_api.h"
 #import "DisplayCommand.h"
 #import "Utils.h"
-#import "Sparkle.h"
 
 @implementation AboutWindowController
 
@@ -33,66 +32,6 @@ extern void *ctx;
 	[self.creditsTextView readRTFDFromFile:path];
 
 	self.windowHasLoad = YES;
-
-	if ([self updateCheckEnabled])
-	{
-		self.updateChannelComboBox.hidden = NO;
-		self.updateChannelLabel.hidden = NO;
-
-		char *str = toggl_get_update_channel(ctx);
-		self.updateChannelComboBox.stringValue = [NSString stringWithUTF8String:str];
-		free(str);
-
-		if (![[SUUpdater sharedUpdater] updateInProgress])
-		{
-			[self checkForUpdates];
-		}
-
-		[self displayUpdateStatus];
-	}
-}
-
-- (BOOL)updateCheckEnabled
-{
-	NSDictionary *infoDict = [[NSBundle mainBundle] infoDictionary];
-
-	return [infoDict[@"KopsikCheckForUpdates"] boolValue];
-}
-
-- (void)checkForUpdates
-{
-	if (![self updateCheckEnabled])
-	{
-		return;
-	}
-	[[SUUpdater sharedUpdater] resetUpdateCycle];
-	[[SUUpdater sharedUpdater] checkForUpdatesInBackground];
-}
-
-- (void)updater:(SUUpdater *)updater didFindValidUpdate:(SUAppcastItem *)update
-{
-	NSLog(@"update found: %@", update.displayVersionString);
-
-	self.updateStatus =
-		[NSString stringWithFormat:@"Update found: %@. Downloading..",
-		 update.displayVersionString];
-
-	[self displayUpdateStatus];
-}
-
-- (void)displayUpdateStatus
-{
-	NSLog(@"automaticallyDownloadsUpdates=%d", [[SUUpdater sharedUpdater] automaticallyDownloadsUpdates]);
-
-	if (self.updateStatus)
-	{
-		self.updateStatusTextField.stringValue = self.updateStatus;
-		[self.updateStatusTextField setHidden:NO];
-	}
-	else
-	{
-		[self.updateStatusTextField setHidden:YES];
-	}
 }
 
 - (BOOL)isVisible
@@ -109,25 +48,6 @@ extern void *ctx;
 	NSString *updateChannel = self.updateChannelComboBox.stringValue;
 
 	toggl_set_update_channel(ctx, [updateChannel UTF8String]);
-
-	[Utils setUpdaterChannel:updateChannel];
-
-	[self checkForUpdates];
-}
-
-- (void)updaterDidNotFindUpdate:(SUUpdater *)update
-{
-	NSLog(@"No update found");
-}
-
-- (void)updater:(SUUpdater *)updater willInstallUpdate:(SUAppcastItem *)update
-{
-	NSLog(@"Will install update %@", update.displayVersionString);
-}
-
-- (void)updater:(SUUpdater *)updater didAbortWithError:(NSError *)error
-{
-	NSLog(@"Update check failed with error %@", error);
 }
 
 @end
