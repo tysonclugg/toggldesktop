@@ -412,6 +412,9 @@
   <ItemGroup>
     <None Include="Resources\shadow.png" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Resources\toggl-desktop-bg-light.png" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PreBuildEvent>
