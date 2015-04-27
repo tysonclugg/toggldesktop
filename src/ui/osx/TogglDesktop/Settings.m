@@ -15,6 +15,7 @@
 
 	self.idle_detection = data->UseIdleDetection;
 	self.menubar_timer = data->MenubarTimer;
+	self.menubar_project = data->MenubarProject;
 	self.dock_icon = data->DockIcon;
 	self.on_top = data->OnTop;
 	self.reminder = data->Reminder;
@@ -29,6 +30,8 @@
 	self.proxy_port = data->ProxyPort;
 	self.proxy_username = [NSString stringWithUTF8String:data->ProxyUsername];
 	self.proxy_password = [NSString stringWithUTF8String:data->ProxyPassword];
+
+	self.autodetect_proxy = data->AutodetectProxy;
 }
 
 @end

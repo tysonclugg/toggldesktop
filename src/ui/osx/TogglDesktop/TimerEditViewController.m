@@ -84,29 +84,6 @@ NSString *kInactiveTimerColor = @"#999999";
 	self.autocompleteDataSource.combobox = self.descriptionComboBox;
 
 	[self.autocompleteDataSource setFilter:@""];
-	NSFont *descriptionFont = [NSFont fontWithName:@"Lucida Grande" size:13.0];
-	NSFont *durationFont = [NSFont fontWithName:@"Lucida Grande" size:16.0];
-	NSColor *color = [ConvertHexColor hexCodeToNSColor:kTrackingColor];
-	NSDictionary *descriptionDictionary = @{
-		NSFontAttributeName : descriptionFont,
-		NSForegroundColorAttributeName : color
-	};
-	NSDictionary *durationDictionary = @{
-		NSFontAttributeName : durationFont,
-		NSForegroundColorAttributeName : color
-	};
-
-	NSAttributedString *descriptionLightString =
-		[[NSAttributedString alloc] initWithString:NSLocalizedString(@"What are you doing?", nil)
-										attributes:descriptionDictionary];
-
-	NSAttributedString *durationLightString =
-		[[NSAttributedString alloc] initWithString:@"00:00:00"
-										attributes:durationDictionary];
-
-	[[self.durationTextField cell] setPlaceholderAttributedString:durationLightString];
-	[[self.descriptionLabel cell] setPlaceholderAttributedString:descriptionLightString];
-	[[self.descriptionComboBox cell] setPlaceholderAttributedString:descriptionLightString];
 
 	[self.startButton setHoverAlpha:0.75];
 }
@@ -338,13 +315,13 @@ NSString *kInactiveTimerColor = @"#999999";
 {
 	NSDictionary *viewsDict = NSDictionaryOfVariableBindings(_descriptionComboBox, _projectTextField);
 
-	self.projectComboConstraint = [NSLayoutConstraint constraintsWithVisualFormat:@"V:[_descriptionComboBox]-2@1000-[_projectTextField]"
+	self.projectComboConstraint = [NSLayoutConstraint constraintsWithVisualFormat:@"V:[_descriptionComboBox]-6@1000-[_projectTextField]"
 																		  options:0
 																		  metrics:nil
 																			views:viewsDict];
 
 	NSDictionary *viewsDict_ = NSDictionaryOfVariableBindings(_descriptionLabel, _projectTextField);
-	self.projectLabelConstraint = [NSLayoutConstraint constraintsWithVisualFormat:@"V:[_descriptionLabel]-0@1000-[_projectTextField]"
+	self.projectLabelConstraint = [NSLayoutConstraint constraintsWithVisualFormat:@"V:[_descriptionLabel]-4@1000-[_projectTextField]"
 																		  options:0
 																		  metrics:nil
 																			views:viewsDict_];
@@ -378,7 +355,7 @@ NSString *kInactiveTimerColor = @"#999999";
 
 	// resign current firstResponder
 	[self.durationTextField.window makeFirstResponder:[self.durationTextField superview]];
-	self.time_entry.Duration = self.durationTextField.stringValue;
+	self.time_entry.duration = self.durationTextField.stringValue;
 	self.time_entry.Description = self.descriptionComboBox.stringValue;
 	[[NSNotificationCenter defaultCenter] postNotificationName:kCommandNew
 														object:self.time_entry];

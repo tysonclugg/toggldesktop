@@ -53,6 +53,9 @@ namespace TogglDesktop
                 Invoke((MethodInvoker)delegate { OnSettings(open, settings); });
                 return;
             }
+
+            checkBoxUseSystemProxySettings.Checked = settings.AutodetectProxy;
+
             groupBoxProxySettings.Enabled = settings.UseProxy;
             checkBoxUseProxy.Checked = settings.UseProxy;
             textBoxProxyHost.Text = settings.ProxyHost;
@@ -71,6 +74,7 @@ namespace TogglDesktop
             textBoxReminderMinutes.Enabled = checkBoxRemindToTrackTime.Checked;
 
             // Load shortcuts
+            try
             {
                 string keyCode = Properties.Settings.Default.ShowKey;
                 if (keyCode != "" && keyCode != null)
@@ -80,7 +84,12 @@ namespace TogglDesktop
                     btnRecordShowHideShortcut.Text = keyEventToString(modifiers, keyCode);
                 }
             }
+            catch (Exception e)
+            {
+                Console.WriteLine("Could not load show hotkey: ", e);
+            }
 
+            try
             {
                 string keyCode = Properties.Settings.Default.StartKey;
                 if (keyCode != "" && keyCode != null)
@@ -89,6 +98,10 @@ namespace TogglDesktop
                         Properties.Settings.Default.StartModifiers;
                     btnRecordStartStopShortcut.Text = keyEventToString(modifiers, keyCode);
                 }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Could not load start hotkey: ", e);
             }
 
             if (open)
@@ -123,6 +136,8 @@ namespace TogglDesktop
             ulong.TryParse(textBoxReminderMinutes.Text, out reminderMinutes);
 
             Toggl.Settings settings = new Toggl.Settings();
+
+            settings.AutodetectProxy = checkBoxUseSystemProxySettings.Checked;
 
             settings.UseProxy = checkBoxUseProxy.Checked;
             settings.ProxyPort = port;
@@ -249,6 +264,10 @@ namespace TogglDesktop
         private void checkBoxRemindToTrackTime_CheckedChanged(object sender, EventArgs e)
         {
             textBoxReminderMinutes.Enabled = checkBoxRemindToTrackTime.Checked;
+        }
+
+        private void checkBoxUseSystemProxySettings_CheckedChanged(object sender, EventArgs e)
+        {
         }
     }
 }

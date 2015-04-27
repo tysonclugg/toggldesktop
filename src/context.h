@@ -62,6 +62,9 @@ class Context : public TimelineDatasource {
     void SetUpdatePath(const std::string path) {
         update_path_ = path;
     }
+    const std::string &UpdatePath() {
+        return update_path_;
+    }
 
     void SetEnvironment(const std::string environment);
     std::string Environment() const {
@@ -78,6 +81,8 @@ class Context : public TimelineDatasource {
 
     _Bool SetSettingsMenubarTimer(const _Bool menubar_timer);
 
+    _Bool SetSettingsMenubarProject(const _Bool menubar_project);
+
     _Bool SetSettingsDockIcon(const _Bool dock_icon);
 
     _Bool SetSettingsOnTop(const _Bool on_top);
@@ -92,11 +97,25 @@ class Context : public TimelineDatasource {
 
     _Bool SetSettingsManualMode(const _Bool manual_mode);
 
+    _Bool SetSettingsAutodetectProxy(const _Bool autodetect_proxy);
+
     _Bool ProxySettings(bool *use_proxy, Proxy *proxy);
 
     _Bool SetProxySettings(
         const bool use_proxy,
         const Proxy proxy);
+
+    _Bool LoadWindowSettings(
+        int64_t *window_x,
+        int64_t *window_y,
+        int64_t *window_height,
+        int64_t *window_width);
+
+    _Bool SaveWindowSettings(
+        const int64_t window_x,
+        const int64_t window_y,
+        const int64_t window_height,
+        const int64_t window_width);
 
     _Bool Login(
         const std::string email,
@@ -221,6 +240,10 @@ class Context : public TimelineDatasource {
         quit_ = true;
     }
 
+    std::string UserFullName() const;
+
+    std::string UserEmail() const;
+
     // Timeline datasource
     error CreateTimelineBatch(TimelineBatch *batch);
     error SaveTimelineEvent(TimelineEvent *event);
@@ -318,6 +341,8 @@ class Context : public TimelineDatasource {
 
     error downloadUpdate();
 
+    void stopActivities();
+
     Poco::Mutex db_m_;
     Database *db_;
 
@@ -371,6 +396,10 @@ class Context : public TimelineDatasource {
     Analytics analytics_;
 
     std::string update_path_;
+
+    bool im_a_teapot_;
+
+    static std::string log_path_;
 };
 
 void on_websocket_message(

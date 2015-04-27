@@ -12,25 +12,43 @@ namespace TogglDesktop
     {
         public static void LoadWindowLocation(Form f, Form edit)
         {
-            Size defaultMinimumSize = f.MinimumSize;
-            Size defaultEditMinimumSize = edit.MinimumSize;
-            edit.MinimumSize = Properties.Settings.Default.EditSize;
-            edit.MinimumSize = defaultEditMinimumSize;
-            if (Properties.Settings.Default.Maximized)
+            try
             {
-                f.WindowState = FormWindowState.Maximized;
+                if (edit != null) {
+                    edit.MinimumSize = Properties.Settings.Default.EditSize;
+                }
+                if (Properties.Settings.Default.Maximized)
+                {
+                    f.WindowState = FormWindowState.Maximized;
+                }
+                else if (Properties.Settings.Default.Minimized)
+                {
+                    f.WindowState = FormWindowState.Minimized;
+                }
+
+                Int64 x = 0, y = 0, h = 0, w = 0;
+                if (Toggl.WindowSettings(ref x, ref y, ref h, ref w))
+                {
+                    if (x >= 0 && y >= 0)
+                    {
+                        f.Location = new Point((int)x, (int)y);
+                    }
+
+                    if (h >= 0 && w >= 0)
+                    {
+                        f.Size = new Size((int)w, (int)h);
+                        f.MinimumSize = new Size((int)w, (int)h);
+                    }
+                }
+
+                if (!visibleOnAnyScreen(f))
+                {
+                    f.Location = Screen.PrimaryScreen.WorkingArea.Location;
+                }
             }
-            else if (Properties.Settings.Default.Minimized)
+            catch (Exception ex)
             {
-                f.WindowState = FormWindowState.Minimized;
-            }
-            f.Location = Properties.Settings.Default.Location;
-            f.Size = Properties.Settings.Default.Size;
-            f.MinimumSize = Properties.Settings.Default.Size;
-            f.MinimumSize = defaultMinimumSize;
-            if (!visibleOnAnyScreen(f))
-            {
-                f.Location = Screen.PrimaryScreen.WorkingArea.Location;
+                Console.WriteLine("Could not load window location: ", ex);
             }
         }
 
@@ -78,43 +96,68 @@ namespace TogglDesktop
 
         public static void SetShortcutForShow(KeyEventArgs e)
         {
-            Properties.Settings.Default.ShowModifiers = GetModifiers(e);
-            Properties.Settings.Default.ShowKey = GetKeyCode(e);
-            Properties.Settings.Default.Save();
+            try
+            {
+                Properties.Settings.Default.ShowModifiers = GetModifiers(e);
+                Properties.Settings.Default.ShowKey = GetKeyCode(e);
+                Properties.Settings.Default.Save();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Could not set shortcut for show: ", ex);
+            }
         }
 
         public static void SetShortcutForStart(KeyEventArgs e)
         {
-            Properties.Settings.Default.StartModifiers = GetModifiers(e);
-            Properties.Settings.Default.StartKey = GetKeyCode(e);
-            Properties.Settings.Default.Save();
+            try
+            {
+                Properties.Settings.Default.StartModifiers = GetModifiers(e);
+                Properties.Settings.Default.StartKey = GetKeyCode(e);
+                Properties.Settings.Default.Save();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Could not set shortcut for start: ", ex);
+            }
         }
 
         public static void SaveWindowLocation(Form f, Form edit)
         {
-            if (f.WindowState == FormWindowState.Maximized)
+            try
             {
-                Properties.Settings.Default.Location = f.Location;
-                Properties.Settings.Default.Size = f.Size;
-                Properties.Settings.Default.Maximized = true;
-                Properties.Settings.Default.Minimized = false;
+                Toggl.SetWindowSettings(
+                    f.Location.X,
+                    f.Location.Y,
+                    f.Size.Height,
+                    f.Size.Width);
+
+                if (f.WindowState == FormWindowState.Maximized)
+                {
+                    Properties.Settings.Default.Maximized = true;
+                    Properties.Settings.Default.Minimized = false;
+                }
+                else if (f.WindowState == FormWindowState.Normal)
+                {
+                    Properties.Settings.Default.Maximized = false;
+                    Properties.Settings.Default.Minimized = false;
+                }
+                else
+                {
+                    Properties.Settings.Default.Maximized = false;
+                    Properties.Settings.Default.Minimized = true;
+                }
+
+                if (edit != null) {
+                    Properties.Settings.Default.EditSize = edit.Size;
+                }
+
+                Properties.Settings.Default.Save();
             }
-            else if (f.WindowState == FormWindowState.Normal)
+            catch (Exception ex)
             {
-                Properties.Settings.Default.Location = f.Location;
-                Properties.Settings.Default.Size = f.Size;
-                Properties.Settings.Default.Maximized = false;
-                Properties.Settings.Default.Minimized = false;
+                Console.WriteLine("Could not save window location: ", ex);
             }
-            else
-            {
-                Properties.Settings.Default.Location = f.Location;
-                Properties.Settings.Default.Size = f.Size;
-                Properties.Settings.Default.Maximized = false;
-                Properties.Settings.Default.Minimized = true;
-            }
-            Properties.Settings.Default.EditSize = edit.Size;
-            Properties.Settings.Default.Save();
         }
     }
 }

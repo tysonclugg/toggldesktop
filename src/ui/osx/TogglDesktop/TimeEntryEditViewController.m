@@ -17,7 +17,6 @@
 #import "toggl_api.h"
 #import "DisplayCommand.h"
 #import "Utils.h"
-#include <Carbon/Carbon.h>
 
 @interface TimeEntryEditViewController ()
 @property AutocompleteDataSource *projectAutocompleteDataSource;
@@ -36,7 +35,6 @@
 @property BOOL startTimeChanged;
 @property BOOL endTimeChanged;
 @property BOOL popupOnLeft;
-@property BOOL fromKeyboard;
 @property NSString *descriptionComboboxPreviousStringValue;
 @property NSString *projectSelectPreviousStringValue;
 @property NSMutableAttributedString *clientColorTitle;
@@ -56,7 +54,6 @@ extern void *ctx;
 		self.startTimeChanged = NO;
 		self.endTimeChanged = NO;
 		self.popupOnLeft = NO;
-		self.fromKeyboard = NO;
 
 		self.projectAutocompleteDataSource = [[AutocompleteDataSource alloc] initWithNotificationName:kDisplayProjectAutocomplete];
 		self.descriptionComboboxDataSource = [[AutocompleteDataSource alloc] initWithNotificationName:kDisplayTimeEntryAutocomplete];
@@ -171,11 +168,6 @@ extern void *ctx;
 		[self.view.window setInitialFirstResponder:self.projectSelect];
 		return;
 	}
-	if ([self.timeEntry.focusedFieldName isEqualToString:[NSString stringWithUTF8String:kKeyboardShortcut]])
-	{
-		self.fromKeyboard = YES;
-	}
-
 	[self.view.window setInitialFirstResponder:self.descriptionCombobox];
 }
 
@@ -697,8 +689,6 @@ extern void *ctx;
 
 	NSAssert(self.timeEntry != nil, @"Expected time entry");
 
-	[self.projectSelect.cell setCalculatedMaxWidth:0];
-
 	NSString *key = self.projectSelect.stringValue;
 	AutocompleteItem *autocomplete = [self.projectAutocompleteDataSource get:key];
 	uint64_t task_id = 0;
@@ -798,8 +788,6 @@ extern void *ctx;
 	NSString *key = self.descriptionCombobox.stringValue;
 
 	NSLog(@"descriptionComboboxChanged, stringValue = %@", key);
-
-	[self.descriptionCombobox.cell setCalculatedMaxWidth:0];
 
 	AutocompleteItem *autocomplete =
 		[self.descriptionComboboxDataSource get:key];
@@ -925,6 +913,11 @@ extern void *ctx;
 
 	if (![[aNotification object] isKindOfClass:[NSTokenField class]])
 	{
+		// If enter was pressed then close editpopup
+		if ([[[aNotification userInfo] objectForKey:@"NSTextMovement"] intValue] == NSReturnTextMovement)
+		{
+			[self closeEdit];
+		}
 		return;
 	}
 	[self applyTags];
@@ -1070,19 +1063,6 @@ extern void *ctx;
 - (void)closeEdit
 {
 	toggl_edit(ctx, [self.timeEntry.GUID UTF8String], false, "");
-}
-
-- (void)keyUp:(NSEvent *)event
-{
-	if ([event keyCode] == kVK_Return && [self.tagsTokenField currentEditor] == nil && !self.fromKeyboard)
-	{
-		[self closeEdit];
-	}
-	else
-	{
-		self.fromKeyboard = NO;
-		[super keyUp:event];
-	}
 }
 
 @end

@@ -24,8 +24,17 @@
 
 #include "./const.h"
 #include "./https_client.h"
+#include "./netconf.h"
 
 namespace toggl {
+
+bool WebSocketClient::Up() const {
+    return activity_.isRunning() && !activity_.isStopped();
+}
+
+WebSocketClient::~WebSocketClient() {
+    deleteSession();
+}
 
 void WebSocketClient::Start(
     void *ctx,
@@ -111,17 +120,9 @@ error WebSocketClient::createSession() {
             uri.getHost(),
             uri.getPort(),
             context);
-        if (HTTPSClient::Config.ProxySettings.IsConfigured()) {
-            session_->setProxy(
-                HTTPSClient::Config.ProxySettings.Host(),
-                static_cast<Poco::UInt16>(
-                    HTTPSClient::Config.ProxySettings.Port()));
-            if (HTTPSClient::Config.ProxySettings.HasCredentials()) {
-                session_->setProxyCredentials(
-                    HTTPSClient::Config.ProxySettings.Username(),
-                    HTTPSClient::Config.ProxySettings.Password());
-            }
-        }
+
+        Netconf::ConfigureProxy(kWebSocketURL, session_);
+
         req_ = new Poco::Net::HTTPRequest(
             Poco::Net::HTTPRequest::HTTP_GET, "/ws",
             Poco::Net::HTTPMessage::HTTP_1_1);
@@ -290,10 +291,6 @@ void WebSocketClient::runActivity() {
     }
 
     logger().debug("activity finished");
-}
-
-WebSocketClient::~WebSocketClient() {
-    deleteSession();
 }
 
 void WebSocketClient::deleteSession() {

@@ -7,13 +7,20 @@
     <x>0</x>
     <y>0</y>
     <width>400</width>
-    <height>271</height>
+    <height>310</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Preferences</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QCheckBox" name="useSystemProxySettings">
+     <property name="text">
+      <string>Use system proxy settings</string>
+     </property>
+    </widget>
+   </item>
    <item>
     <widget class="QGroupBox" name="useProxy">
      <property name="title">
@@ -82,6 +89,9 @@
    <item>
     <widget class="QFrame" name="idleDetectionSettings">
      <layout class="QHBoxLayout" name="horizontalLayout">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
       <item>
        <widget class="QCheckBox" name="idleDetection">
         <property name="text">
@@ -133,6 +143,9 @@
    </item>
    <item>
     <widget class="QCheckBox" name="recordTimeline">
+     <property name="styleSheet">
+      <string notr="true"/>
+     </property>
      <property name="text">
       <string>Record timeline</string>
      </property>
@@ -141,6 +154,9 @@
    <item>
     <widget class="QFrame" name="horizontalFrame">
      <layout class="QHBoxLayout" name="reminderSettings">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
       <item>
        <widget class="QCheckBox" name="remindToTrackTime">
         <property name="text">

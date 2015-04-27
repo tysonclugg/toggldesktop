@@ -59,9 +59,23 @@ class Database {
 
     error LoadSettings(Settings *settings);
 
+    error LoadWindowSettings(
+        Poco::Int64 *window_x,
+        Poco::Int64 *window_y,
+        Poco::Int64 *window_height,
+        Poco::Int64 *window_width);
+
+    error SaveWindowSettings(
+        const Poco::Int64 window_x,
+        const Poco::Int64 window_y,
+        const Poco::Int64 window_height,
+        const Poco::Int64 window_width);
+
     error SetSettingsUseIdleDetection(const bool &use_idle_detection);
 
     error SetSettingsMenubarTimer(const bool &menubar_timer);
+
+    error SetSettingsMenubarProject(const bool &menubar_project);
 
     error SetSettingsDockIcon(const bool &dock_icon);
 
@@ -76,6 +90,8 @@ class Database {
     error SetSettingsReminderMinutes(const Poco::UInt64 reminder_minutes);
 
     error SetSettingsManualMode(const bool &manual_mode);
+
+    error SetSettingsAutodetectProxy(const bool &autodetect_proxy);
 
     error LoadProxySettings(
         bool *use_proxy,
@@ -131,6 +147,8 @@ class Database {
         const std::vector<TimelineEvent> &timeline_events);
 
  private:
+    error vacuum();
+
     error initialize_tables();
 
     error ensureMigrationTable();

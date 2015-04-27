@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Drawing.Drawing2D;
+using System.IO;
 
 namespace TogglDesktop
 {
@@ -44,6 +45,8 @@ namespace TogglDesktop
 
         KeyboardHook startHook = new KeyboardHook();
         KeyboardHook showHook = new KeyboardHook();
+
+        private Timer runScriptTimer;
 
         [StructLayout(LayoutKind.Sequential)]
         struct LASTINPUTINFO
@@ -91,36 +94,36 @@ namespace TogglDesktop
 
         void setGlobalShortCutKeys()
         {
-            startHook.Clear();
-            string startKey = Properties.Settings.Default.StartKey;
-            if (startKey != null && startKey != "")
+            try
             {
-                try
+                startHook.Clear();
+                string startKey = Properties.Settings.Default.StartKey;
+                if (startKey != null && startKey != "")
                 {
                     startHook.RegisterHotKey(
                         Properties.Settings.Default.StartModifiers,
                         (Keys)Enum.Parse(typeof(Keys), startKey));
                 }
-                catch (Exception e)
-                {
-                    Console.WriteLine("Could not register start shortcut: ", e);
-                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Could not register start shortcut: ", e);
             }
 
-            showHook.Clear();
-            string showKey = Properties.Settings.Default.ShowKey;
-            if (showKey != null && showKey != "")
+            try
             {
-                try
+                showHook.Clear();
+                string showKey = Properties.Settings.Default.ShowKey;
+                if (showKey != null && showKey != "")
                 {
                     showHook.RegisterHotKey(
                         Properties.Settings.Default.ShowModifiers,
                         (Keys)Enum.Parse(typeof(Keys), showKey));
                 }
-                catch (Exception e)
-                {
-                    Console.WriteLine("Could not register show hotkey: ", e);
-                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Could not register show hotkey: ", e);
             }
         }
 
@@ -233,8 +236,8 @@ namespace TogglDesktop
             preferencesWindowController = new PreferencesWindowController();
             feedbackWindowController = new FeedbackWindowController();
             idleNotificationWindowController = new IdleNotificationWindowController();
+
             initEditForm();
-            Utils.LoadWindowLocation(this, editForm);
             timeEntryListViewController.setEditPopup(editForm);
 
             FlowLayoutPanel listing = timeEntryListViewController.getListing();
@@ -243,6 +246,7 @@ namespace TogglDesktop
                 listing.Scroll += MainWindowControllerEntries_Scroll;
                 listing.MouseWheel += MainWindowControllerEntries_Scroll;
             }
+
             if (!Toggl.Start(TogglDesktop.Program.Version()))
             {
                 try
@@ -255,7 +259,63 @@ namespace TogglDesktop
                 TogglDesktop.Program.Shutdown(1);
             }
 
+            Utils.LoadWindowLocation(this, editForm);
+
             aboutWindowController.initAndCheck();
+
+            runScriptTimer = new Timer();
+            runScriptTimer.Interval = 1000;
+            runScriptTimer.Tick += runScriptTimer_Tick;
+            runScriptTimer.Start();
+        }
+
+        void runScriptTimer_Tick(object sender, EventArgs e)
+        {
+            runScriptTimer.Stop();
+
+            string scriptPath = parseScriptPath();
+            if (null == scriptPath)
+            {
+                return;
+            }
+
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                if (!File.Exists(scriptPath))
+                {
+                    Console.WriteLine("Script file does not exist: " + scriptPath);
+                    TogglDesktop.Program.Shutdown(0);
+                }
+
+                string script = File.ReadAllText(scriptPath);
+
+                Int64 err = 0;
+                string result = Toggl.RunScript(script, ref err);
+                if (0 != err)
+                {
+                    Console.WriteLine(string.Format("Failed to run script, err = {0}", err));
+                }
+                Console.WriteLine(result);
+
+                if (0 == err)
+                {
+                    TogglDesktop.Program.Shutdown(0);
+                }
+            }, null);
+        }
+
+        private string parseScriptPath()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i].Contains("script") && args[i].Contains("path"))
+                {
+                    return args[i + 1];
+                }
+            }
+
+            return null;
         }
 
         private void MainWindowControllerEntries_Scroll(object sender, EventArgs e)
@@ -413,6 +473,7 @@ namespace TogglDesktop
             }
 
             errorLabel.Text = errmsg;
+            errorToolTip.SetToolTip(errorLabel, errmsg);
             troubleBox.Visible = true;
             contentPanel.Location = errorContentPosition;
         }
@@ -451,7 +512,7 @@ namespace TogglDesktop
                 contentPanel.Controls.Add(loginViewController);
                 MinimumSize = new Size(loginViewController.MinimumSize.Width, loginViewController.MinimumSize.Height + 40);
                 loginViewController.SetAcceptButton(this);
-                resizeHandle.Visible = false;
+                resizeHandle.BackColor = Color.FromArgb(69, 69, 69);
             }
             enableMenuItems();
             updateStatusIcons(true);
@@ -491,7 +552,6 @@ namespace TogglDesktop
                 MinimumSize = new Size(230, 86);
                 contentPanel.Controls.Add(timeEntryListViewController);
                 timeEntryListViewController.SetAcceptButton(this);
-                resizeHandle.Visible = true;
                 if (editForm.Visible)
                 {
                     editForm.Hide();
@@ -884,11 +944,15 @@ namespace TogglDesktop
         }
 
         private void updateResizeHandleBackground() {
-            if (Height <= MinimumSize.Height)
+            if (contentPanel.Controls.Contains(loginViewController))
             {
-                String c = "#47bc00";
+                resizeHandle.BackColor = Color.FromArgb(69, 69, 69);
+            }
+            else if (Height <= MinimumSize.Height)
+            {
+                String c = "#4dd965";
                 if(isTracking) {
-                    c = "#e20000";
+                    c = "#ff3d32";
                 } 
                 resizeHandle.BackColor = ColorTranslator.FromHtml(c);
             }

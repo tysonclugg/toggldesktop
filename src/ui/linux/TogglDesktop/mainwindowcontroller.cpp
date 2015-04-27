@@ -46,6 +46,7 @@ MainWindowController::MainWindowController(
   aboutDialog(new AboutDialog(this)),
   feedbackDialog(new FeedbackDialog(this)),
   idleNotificationDialog(new IdleNotificationDialog(this)),
+  trayIcon(0),
   reminder(false),
   script(scriptPath) {
     TogglApi::instance->setEnvironment(APP_ENVIRONMENT);
@@ -60,6 +61,7 @@ MainWindowController::MainWindowController(
     verticalLayout->addWidget(new TimeEntryListWidget());
     verticalLayout->addWidget(new TimeEntryEditorWidget());
     verticalLayout->setContentsMargins(0, 0, 0, 0);
+    verticalLayout->setSpacing(0);
     centralWidget()->setLayout(verticalLayout);
 
     readSettings();
@@ -85,11 +87,26 @@ MainWindowController::MainWindowController(
     connect(TogglApi::instance, SIGNAL(displayOnlineState(int64_t)),  // NOLINT
             this, SLOT(displayOnlineState(int64_t)));  // NOLINT
 
-    icon.addFile(QString::fromUtf8(":/icons/1024x1024/toggldesktop.png"));
-    setWindowIcon(icon);
+
+    hasTrayIconCached = hasTrayIcon();
+    if (hasTrayIconCached) {
+        icon.addFile(QString::fromUtf8(":/icons/1024x1024/toggldesktop.png"));
+
+        iconDisabled.addFile(QString::fromUtf8(
+            ":/icons/1024x1024/toggldesktop_gray.png"));
+
+        trayIcon = new QSystemTrayIcon(this);
+    }
 
     connectMenuActions();
     enableMenuActions();
+
+    if (hasTrayIconCached) {
+        // icon is set in enableMenuActions based on if tracking is in progress
+        trayIcon->show();
+    } else {
+        setWindowIcon(icon);
+    }
 }
 
 MainWindowController::~MainWindowController() {
@@ -164,10 +181,22 @@ void MainWindowController::enableMenuActions() {
     actionClear_Cache->setEnabled(loggedIn);
     actionSend_Feedback->setEnabled(loggedIn);
     actionReports->setEnabled(loggedIn);
+    if (hasTrayIconCached) {
+        if (tracking) {
+            trayIcon->setIcon(icon);
+            setWindowIcon(icon);
+        } else {
+            trayIcon->setIcon(iconDisabled);
+            setWindowIcon(iconDisabled);
+        }
+    }
 }
 
 void MainWindowController::connectMenuActions() {
     foreach(QMenu *menu, ui->menuBar->findChildren<QMenu *>()) {
+        if (trayIcon) {
+            trayIcon->setContextMenu(menu);
+        }
         foreach(QAction *action, menu->actions()) {
             connectMenuAction(action);
         }
@@ -308,6 +337,14 @@ void MainWindowController::closeEvent(QCloseEvent *event) {
     } else {
         event->ignore();
     }
+
+    QMainWindow::closeEvent(event);
+}
+
+bool MainWindowController::hasTrayIcon() const {
+    QString currentDesktop = QProcessEnvironment::systemEnvironment().value(
+        "XDG_CURRENT_DESKTOP", "");
+    return "Unity" != currentDesktop;
 }
 
 void MainWindowController::showEvent(QShowEvent *event) {
@@ -330,14 +367,14 @@ void MainWindowController::showEvent(QShowEvent *event) {
 }
 
 void MainWindowController::displayUpdate(const QString url) {
-    if (aboutDialog->isVisible()) {
+    if (aboutDialog->isVisible()
+            || url.isEmpty()) {
         return;
     }
     if (QMessageBox::Yes == QMessageBox(
         QMessageBox::Question,
         "Download new version?",
-        "A new version of Toggl Desktop is available."
-        " Continue with download?",
+        "A new version of Toggl Desktop is available. Continue with download?",
         QMessageBox::No|QMessageBox::Yes).exec()) {
         QDesktopServices::openUrl(QUrl(url));
         quitApp();

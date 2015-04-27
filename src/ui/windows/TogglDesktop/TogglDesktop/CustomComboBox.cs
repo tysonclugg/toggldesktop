@@ -18,6 +18,7 @@ namespace TogglDesktop
         private String _formerValue = String.Empty;
         public bool fullListOpened = false;
         private bool mouseEntered = false;
+        private List<int> wspaces = new List<int>();
 
         public CustomComboBox()
         {
@@ -84,11 +85,16 @@ namespace TogglDesktop
         {
             e.DrawBackground();
             e.DrawFocusRectangle();
+            Brush myBrush = new SolidBrush(e.ForeColor);
+            if (wspaces.Contains(e.Index))
+            {
+                myBrush = Brushes.Gray;
+            }
             e.Graphics.DrawString(
-                 autoCompleteListBox.Items[e.Index].ToString(),
-                 e.Font,
-                 new SolidBrush(e.ForeColor),
-                 e.Bounds);
+                autoCompleteListBox.Items[e.Index].ToString(),
+                e.Font,
+                myBrush,
+                e.Bounds);
         }
 
         public void InitListBox()
@@ -135,12 +141,17 @@ namespace TogglDesktop
             }
 
             autoCompleteListBox.Items.Clear();
+            wspaces.Clear();
 
             foreach (Toggl.AutocompleteItem item in autoCompleteList)
             {
                 if (item.ToString().IndexOf(word, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     autoCompleteListBox.Items.Add(item);
+                    if (item.Type == 3)
+                    {
+                        wspaces.Add(autoCompleteListBox.Items.Count-1);
+                    }
                 }
             }
 
@@ -150,28 +161,7 @@ namespace TogglDesktop
                 return;
             }
 
-            InitListBox();
-
-            autoCompleteListBox.SelectedIndex = 0;
-            autoCompleteListBox.Height = 0;
-            autoCompleteListBox.Width = 0;
-
-            Focus();
-            int maxWidth = 0;
-            using (Graphics graphics = autoCompleteListBox.CreateGraphics())
-            {
-                for (int i = 0; i < autoCompleteListBox.Items.Count; i++)
-                {
-                    autoCompleteListBox.Height += autoCompleteListBox.GetItemHeight(i);
-                    // if item width is larger than the current one
-                    // set it to the new max item width
-                    // GetItemRectangle does not work for me
-                    // we add a little extra space by using '_'
-                    int itemWidth = (int)graphics.MeasureString((autoCompleteListBox.Items[i].ToString()) + "_", autoCompleteListBox.Font).Width;
-                    maxWidth = (maxWidth < itemWidth) ? itemWidth : maxWidth;
-                }
-                autoCompleteListBox.Width = Math.Max(maxWidth, Width + Height - 1);
-            }
+            initAutocompleteSizes();
 
             // Don't show the listbox again, when Enter was pressed
             // (which indicates selection was made)
@@ -233,37 +223,47 @@ namespace TogglDesktop
 
         internal void openFullList(List<Toggl.AutocompleteItem> autoCompleteList)
         {
-            int maxWidth = 0;
             ResetListBox();
             autoCompleteListBox.Items.Clear();
+            wspaces.Clear();
             foreach (Toggl.AutocompleteItem item in autoCompleteList)
             {
                 autoCompleteListBox.Items.Add(item);
+                if (item.Type == 3)
+                {
+                    wspaces.Add(autoCompleteListBox.Items.Count - 1);
+                }
             }
+
             if (autoCompleteListBox.Items.Count > 0)
             {
-                InitListBox();
-                autoCompleteListBox.SelectedIndex = 0;
-                autoCompleteListBox.Height = 0;
-                autoCompleteListBox.Width = 0;
-                Focus();
-                using (Graphics graphics = autoCompleteListBox.CreateGraphics())
-                {
-                    for (int i = 0; i < autoCompleteListBox.Items.Count; i++)
-                    {
-                        autoCompleteListBox.Height += autoCompleteListBox.GetItemHeight(i);
-                        // it item width is larger than the current one
-                        // set it to the new max item width
-                        // GetItemRectangle does not work for me
-                        // we add a little extra space by using '_'
-                        int itemWidth = (int)graphics.MeasureString((autoCompleteListBox.Items[i].ToString()) + "_", autoCompleteListBox.Font).Width;
-                        maxWidth = (maxWidth < itemWidth) ? itemWidth : maxWidth;
-                    }
-                    autoCompleteListBox.Width = Math.Max(maxWidth, Width + Height -1);                   
-                }
+                initAutocompleteSizes();
                 ShowListBox();
             }
             fullListOpened = true;
+        }
+
+        void initAutocompleteSizes()
+        {
+            int maxWidth = 0;
+            InitListBox();
+            autoCompleteListBox.Height = 0;
+            autoCompleteListBox.Width = 0;
+            Focus();
+            using (Graphics graphics = autoCompleteListBox.CreateGraphics())
+            {
+                for (int i = 0; i < autoCompleteListBox.Items.Count; i++)
+                {
+                    autoCompleteListBox.Height += autoCompleteListBox.GetItemHeight(i);
+                    // it item width is larger than the current one
+                    // set it to the new max item width
+                    // GetItemRectangle does not work for me
+                    // we add a little extra space by using '_'
+                    int itemWidth = (int)graphics.MeasureString((autoCompleteListBox.Items[i].ToString()) + "_", autoCompleteListBox.Font).Width;
+                    maxWidth = (maxWidth < itemWidth) ? itemWidth : maxWidth;
+                }
+                autoCompleteListBox.Width = Math.Max(maxWidth, Width + Height - 1);
+            }
         }
 
         internal void handleLeave()

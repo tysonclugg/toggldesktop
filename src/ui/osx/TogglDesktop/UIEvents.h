@@ -28,9 +28,11 @@ extern NSString *const kDisplayError;
 extern NSString *const kDisplayUpdate;
 extern NSString *const kDisplayIdleNotification;
 extern NSString *const kDisplayOnlineState;
+extern NSString *const kDisplaySyncState;
 extern NSString *const kDisplaySettings;
 extern NSString *const kDisplayProxySettings;
 extern NSString *const kDisplayTimerState;
+extern NSString *const kDisplayUnsyncedItems;
 
 extern NSString *const kHideDisplayError;
 extern NSString *const kForceCloseEditPopover;
@@ -47,4 +49,3 @@ extern NSString *const kToggleTimerMode;
 const char *kFocusedFieldNameDuration;
 const char *kFocusedFieldNameDescription;
 const char *kFocusedFieldNameProject;
-const char *kKeyboardShortcut;

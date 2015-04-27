@@ -17,7 +17,7 @@ class AboutDialog : public QDialog {
     ~AboutDialog();
 
  private slots:  // NOLINT
-    void displayUpdate(const QString update_url);
+    void displayUpdate(const QString url);
 
     void on_updateButton_clicked();
 

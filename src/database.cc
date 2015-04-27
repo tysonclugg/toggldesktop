@@ -84,6 +84,12 @@ Database::Database(const std::string db_path)
         return;
     }
 
+    err = vacuum();
+    if (err != noError) {
+        logger().error("failed to vacuum: " + err);
+        // but will continue, its not vital
+    }
+
     Poco::Stopwatch stopwatch;
     stopwatch.start();
 
@@ -225,6 +231,22 @@ error Database::setJournalMode(const std::string mode) {
     return last_error("setJournalMode");
 }
 
+error Database::vacuum() {
+    Poco::Mutex::ScopedLock lock(session_m_);
+    poco_check_ptr(session_);
+
+    try {
+        *session_ << "VACUUM;" << now;
+    } catch(const Poco::Exception& exc) {
+        return exc.displayText();
+    } catch(const std::exception& ex) {
+        return ex.what();
+    } catch(const std::string& ex) {
+        return ex;
+    }
+    return last_error("vacuum");
+}
+
 Poco::Logger &Database::logger() const {
     return Poco::Logger::get("database");
 }
@@ -309,12 +331,14 @@ error Database::LoadSettings(Settings *settings) {
     poco_check_ptr(session_);
 
     try {
-        *session_ << "select use_idle_detection, menubar_timer, dock_icon, "
-                  "on_top, reminder, idle_minutes, focus_on_shortcut, "
-                  "reminder_minutes, manual_mode "
+        *session_ << "select use_idle_detection, menubar_timer, "
+                  "menubar_project, dock_icon, on_top, reminder,  "
+                  "idle_minutes, focus_on_shortcut, reminder_minutes, "
+                  "manual_mode, autodetect_proxy "
                   "from settings limit 1",
                   into(settings->use_idle_detection),
                   into(settings->menubar_timer),
+                  into(settings->menubar_project),
                   into(settings->dock_icon),
                   into(settings->on_top),
                   into(settings->reminder),
@@ -322,6 +346,7 @@ error Database::LoadSettings(Settings *settings) {
                   into(settings->focus_on_shortcut),
                   into(settings->reminder_minutes),
                   into(settings->manual_mode),
+                  into(settings->autodetect_proxy),
                   limit(1),
                   now;
     } catch(const Poco::Exception& exc) {
@@ -332,6 +357,73 @@ error Database::LoadSettings(Settings *settings) {
         return ex;
     }
     return last_error("LoadSettings");
+}
+
+error Database::SaveWindowSettings(
+    const Poco::Int64 window_x,
+    const Poco::Int64 window_y,
+    const Poco::Int64 window_height,
+    const Poco::Int64 window_width) {
+
+    Poco::Mutex::ScopedLock lock(session_m_);
+
+    poco_check_ptr(session_);
+
+    try {
+        *session_ << "update settings set "
+                  "window_x = :window_x, "
+                  "window_y = :window_y, "
+                  "window_height = :window_height, "
+                  "window_width = :window_width ",
+                  useRef(window_x),
+                  useRef(window_y),
+                  useRef(window_height),
+                  useRef(window_width),
+                  now;
+    } catch(const Poco::Exception& exc) {
+        return exc.displayText();
+    } catch(const std::exception& ex) {
+        return ex.what();
+    } catch(const std::string& ex) {
+        return ex;
+    }
+
+    return last_error("SaveWindowSettings");
+}
+
+error Database::LoadWindowSettings(
+    Poco::Int64 *window_x,
+    Poco::Int64 *window_y,
+    Poco::Int64 *window_height,
+    Poco::Int64 *window_width) {
+    Poco::Mutex::ScopedLock lock(session_m_);
+
+    poco_check_ptr(session_);
+
+    Poco::Int64 x(0), y(0), height(0), width(0);
+
+    try {
+        *session_ << "select window_x, window_y, window_height, window_width "
+                  "from settings limit 1",
+                  into(x),
+                  into(y),
+                  into(height),
+                  into(width),
+                  limit(1),
+                  now;
+
+        *window_x = x;
+        *window_y = y;
+        *window_height = height;
+        *window_width = width;
+    } catch(const Poco::Exception& exc) {
+        return exc.displayText();
+    } catch(const std::exception& ex) {
+        return ex.what();
+    } catch(const std::string& ex) {
+        return ex;
+    }
+    return last_error("LoadWindowSettings");
 }
 
 error Database::LoadProxySettings(
@@ -381,6 +473,12 @@ error Database::SetSettingsMenubarTimer(
     return setSettingsValue("menubar_timer", menubar_timer);
 }
 
+
+error Database::SetSettingsMenubarProject(
+    const bool &menubar_project) {
+    return setSettingsValue("menubar_project", menubar_project);
+}
+
 error Database::SetSettingsDockIcon(const bool &dock_icon) {
     return setSettingsValue("dock_icon", dock_icon);
 }
@@ -407,6 +505,10 @@ error Database::SetSettingsFocusOnShortcut(const bool &focus_on_shortcut) {
 
 error Database::SetSettingsManualMode(const bool &manual_mode) {
     return setSettingsValue("manual_mode", manual_mode);
+}
+
+error Database::SetSettingsAutodetectProxy(const bool &autodetect_proxy) {
+    return setSettingsValue("autodetect_proxy", autodetect_proxy);
 }
 
 template<typename T>
@@ -2963,17 +3065,38 @@ error Database::migrateSettings() {
         return err;
     }
 
-    err = migrate(
-        "settings.default",
-        "INSERT INTO settings(update_channel) "
-        "SELECT 'stable' WHERE NOT EXISTS (SELECT 1 FROM settings LIMIT 1);");
+    // for 5% users, set the update channel to 'beta' instead of 'stable'
+    Poco::UInt64 has_settings(0);
+    err = UInt("select count(1) from settings", &has_settings);
     if (err != noError) {
         return err;
+    }
+    if (!has_settings) {
+        Poco::Random random;
+        random.seed();
+        std::string channel("stable");
+        Poco::UInt32 r = random.next(100);
+        if (r < kBetaChannelPercentage) {
+            channel = "beta";
+        }
+        err = migrate(
+            "settings.default",
+            "INSERT INTO settings(update_channel) VALUES('" + channel + "')");
+        if (err != noError) {
+            return err;
+        }
     }
 
     err = migrate("settings.menubar_timer",
                   "ALTER TABLE settings "
                   "ADD COLUMN menubar_timer integer not null default 0;");
+    if (err != noError) {
+        return err;
+    }
+
+    err = migrate("settings.menubar_project",
+                  "ALTER TABLE settings "
+                  "ADD COLUMN menubar_project integer not null default 0;");
     if (err != noError) {
         return err;
     }
@@ -3053,6 +3176,7 @@ error Database::migrateSettings() {
         "   use_idle_detection integer not null default 1, "
         "   update_channel varchar not null default 'stable', "
         "   menubar_timer integer not null default 0, "
+        "   menubar_project integer not null default 0, "
         "   dock_icon INTEGER NOT NULL DEFAULT 1, "
         "   on_top INTEGER NOT NULL DEFAULT 0, "
         "   reminder INTEGER NOT NULL DEFAULT 1, "
@@ -3071,7 +3195,7 @@ error Database::migrateSettings() {
         "insert into settings"
         " select local_id, use_proxy, "
         " proxy_host, proxy_port, proxy_username, proxy_password, "
-        " use_idle_detection, update_channel, menubar_timer, "
+        " use_idle_detection, update_channel, menubar_timer, menubar_project, "
         " dock_icon, on_top, reminder, ignore_cert, idle_minutes, "
         " focus_on_shortcut, reminder_minutes, manual_mode "
         " from tmp_settings");
@@ -3089,6 +3213,46 @@ error Database::migrateSettings() {
     err = migrate(
         "focus on shortcut by default #5",
         "update settings set focus_on_shortcut = 1");
+    if (err != noError) {
+        return err;
+    }
+
+    err = migrate(
+        "settings.autodetect_proxy",
+        "ALTER TABLE settings "
+        "ADD COLUMN autodetect_proxy INTEGER NOT NULL DEFAULT 1;");
+    if (err != noError) {
+        return err;
+    }
+
+    err = migrate(
+        "settings.window_x",
+        "ALTER TABLE settings "
+        "ADD COLUMN window_x integer not null default 0;");
+    if (err != noError) {
+        return err;
+    }
+
+    err = migrate(
+        "settings.window_y",
+        "ALTER TABLE settings "
+        "ADD COLUMN window_y integer not null default 0;");
+    if (err != noError) {
+        return err;
+    }
+
+    err = migrate(
+        "settings.window_height",
+        "ALTER TABLE settings "
+        "ADD COLUMN window_height integer not null default 0;");
+    if (err != noError) {
+        return err;
+    }
+
+    err = migrate(
+        "settings.window_width",
+        "ALTER TABLE settings "
+        "ADD COLUMN window_width integer not null default 0;");
     if (err != noError) {
         return err;
     }
@@ -3379,7 +3543,7 @@ error Database::SelectTimelineBatch(
         if (compressed.find(key) == compressed.end()) {
             TimelineEvent chunk;
             chunk.user_id = user_id;
-            chunk.start_time = chunk_start_time;
+            chunk.start_time = event.start_time;
             chunk.end_time = chunk.start_time + duration;
             chunk.filename = event.filename;
             chunk.title = event.title;
@@ -3636,7 +3800,7 @@ error Database::DeleteTimelineBatch(
         logger().warning("DeleteTimelineBatch db closed, ignoring request");
         return noError;
     }
-    std::vector<int> ids;
+    std::vector<Poco::Int64> ids;
     for (std::vector<TimelineEvent>::const_iterator i = timeline_events.begin();
             i != timeline_events.end();
             ++i) {

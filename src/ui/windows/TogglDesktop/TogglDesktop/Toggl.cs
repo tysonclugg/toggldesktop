@@ -142,6 +142,8 @@ namespace TogglDesktop
             [MarshalAs(UnmanagedType.I1)]
             public bool MenubarTimer;
             [MarshalAs(UnmanagedType.I1)]
+            public bool MenubarProject;
+            [MarshalAs(UnmanagedType.I1)]
             public bool DockIcon;
             [MarshalAs(UnmanagedType.I1)]
             public bool OnTop;
@@ -155,6 +157,8 @@ namespace TogglDesktop
             public UInt64 ReminderMinutes;
             [MarshalAs(UnmanagedType.I1)]
             public bool ManualMode;
+            [MarshalAs(UnmanagedType.I1)]
+            public bool AutodetectProxy;
         }
 
         // Callbacks
@@ -757,10 +761,53 @@ namespace TogglDesktop
 
         [DllImport(dll, CharSet = charset, CallingConvention = convention)]
         [return: MarshalAs(UnmanagedType.I1)]
+        private static extern bool toggl_set_window_settings(
+            IntPtr context,
+            Int64 window_x,
+            Int64 window_y,
+            Int64 window_h,
+            Int64 window_w);
+
+        public static bool SetWindowSettings(
+            Int64 x,
+            Int64 y,
+            Int64 h,
+            Int64 w)
+        {
+            return toggl_set_window_settings(ctx, x, y, h, w);
+        }
+
+        [DllImport(dll, CharSet = charset, CallingConvention = convention)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        private static extern bool toggl_window_settings(
+            IntPtr context,
+            ref Int64 window_x,
+            ref Int64 window_y,
+            ref Int64 window_h,
+            ref Int64 window_w);
+
+        public static bool WindowSettings(
+            ref Int64 x,
+            ref Int64 y,
+            ref Int64 h,
+            ref Int64 w)
+        {
+            return toggl_window_settings(ctx, ref x, ref y, ref h, ref w);
+        }
+
+        [DllImport(dll, CharSet = charset, CallingConvention = convention)]
+        [return: MarshalAs(UnmanagedType.I1)]
         private static extern bool toggl_set_settings_use_idle_detection(
             IntPtr context,
             [MarshalAs(UnmanagedType.I1)]
             bool use_idle_detection);
+
+        [DllImport(dll, CharSet = charset, CallingConvention = convention)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        private static extern bool toggl_set_settings_autodetect_proxy(
+            IntPtr context,
+            [MarshalAs(UnmanagedType.I1)]
+            bool autodetect_proxy);
 
         [DllImport(dll, CharSet = charset, CallingConvention = convention)]
         [return: MarshalAs(UnmanagedType.I1)]
@@ -824,6 +871,12 @@ namespace TogglDesktop
 
             if (!toggl_set_settings_focus_on_shortcut(ctx,
                     settings.FocusOnShortcut)) {
+                return false;
+            }
+
+            if (!toggl_set_settings_autodetect_proxy(ctx,
+                settings.AutodetectProxy))
+            {
                 return false;
             }
 
@@ -1038,6 +1091,19 @@ namespace TogglDesktop
         }
 
         [DllImport(dll, CharSet = charset, CallingConvention = convention)]
+        [return: MarshalAs(UnmanagedType.LPWStr)]
+        private static extern string toggl_run_script(
+            IntPtr context,
+            [MarshalAs(UnmanagedType.LPStr)]
+            string script,
+            ref Int64 err);
+
+        public static string RunScript(string script, ref Int64 err)
+        {
+            return toggl_run_script(ctx, script, ref err);
+        }
+
+        [DllImport(dll, CharSet = charset, CallingConvention = convention)]
         private static extern bool toggl_check_view_struct_size(
     		int time_entry_view_item_size,
 		    int autocomplete_view_item_size,
@@ -1071,7 +1137,7 @@ namespace TogglDesktop
         {
             ctx = toggl_context_init("windows_native_app", version);
 
-			toggl_set_environment(ctx, Properties.Settings.Default.Environment);
+			toggl_set_environment(ctx, "production");
 
             string cacert_path = Path.Combine(
                 AppDomain.CurrentDomain.BaseDirectory,
@@ -1270,8 +1336,8 @@ namespace TogglDesktop
             ProcessStartInfo psi = new ProcessStartInfo();
             psi.FileName = updater;
             psi.Arguments = Process.GetCurrentProcess().Id.ToString()
-                + " " + files[0].FullName
-                + " " + System.Reflection.Assembly.GetEntryAssembly().Location;
+                + " " + string.Format("\"{0}\"", files[0].FullName)
+                + " " + string.Format("\"{0}\"", System.Reflection.Assembly.GetEntryAssembly().Location);
             Process process = Process.Start(psi);
             if (!process.HasExited && process.Id != 0)
             {

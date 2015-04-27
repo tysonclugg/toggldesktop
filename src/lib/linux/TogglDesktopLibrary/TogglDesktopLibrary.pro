@@ -30,6 +30,7 @@ SOURCES += \
     ../../../get_focused_window_linux.cc \
     ../../../error.cc \
     ../../../gui.cc \
+    ../../../netconf.cc \
     ../../../https_client.cc \
     $$PWD/../../../../third_party/jsoncpp/dist/jsoncpp.cpp \
     ../../../toggl_api.cc \
@@ -116,7 +117,6 @@ HEADERS += \
     ../../../websocket_client.h \
     ../../../window_change_recorder.h \
     ../../../workspace.h \
-    ../../include/toggl_api.h \
     ../../../../third_party/lua/src/lapi.h \
     ../../../../third_party/lua/src/lauxlib.h \
     ../../../../third_party/lua/src/lcode.h \

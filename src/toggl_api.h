@@ -107,6 +107,7 @@ extern "C" {
         char_t *ProxyPassword;
         _Bool UseIdleDetection;
         _Bool MenubarTimer;
+        _Bool MenubarProject;
         _Bool DockIcon;
         _Bool OnTop;
         _Bool Reminder;
@@ -115,12 +116,19 @@ extern "C" {
         _Bool FocusOnShortcut;
         uint64_t ReminderMinutes;
         _Bool ManualMode;
+        _Bool AutodetectProxy;
     } TogglSettingsView;
 
     // Callbacks that need to be implemented in UI
 
     typedef void (*TogglDisplayApp)(
         const _Bool open);
+
+    typedef void (*TogglDisplaySyncState)(
+        const int64_t state);
+
+    typedef void (*TogglDisplayUnsyncedItems)(
+        const int64_t count);
 
     typedef void (*TogglDisplayError)(
         const char_t *errmsg,
@@ -212,10 +220,13 @@ extern "C" {
     // Need to configure only if you have
     // enabled update check and have not set the
     // display update callback
-
     TOGGL_EXPORT void toggl_set_update_path(
         void *context,
         const char_t *path);
+
+    // you must free the result
+    TOGGL_EXPORT char_t *toggl_update_path(
+        void *context);
 
     // Log path must be configured from UI
 
@@ -238,9 +249,21 @@ extern "C" {
         void *context,
         TogglDisplayApp);
 
+    TOGGL_EXPORT void toggl_on_sync_state(
+        void *context,
+        TogglDisplaySyncState);
+
+    TOGGL_EXPORT void toggl_on_unsynced_items(
+        void *context,
+        TogglDisplayUnsyncedItems);
+
     TOGGL_EXPORT void toggl_on_error(
         void *context,
         TogglDisplayError);
+
+    TOGGL_EXPORT void toggl_on_update(
+        void *context,
+        TogglDisplayUpdate);
 
     TOGGL_EXPORT void toggl_on_online_state(
         void *context,
@@ -301,15 +324,6 @@ extern "C" {
     TOGGL_EXPORT void toggl_on_idle_notification(
         void *context,
         TogglDisplayIdleNotification);
-
-    // If you configure this callback, the app will not
-    // download the update itself, only give you the
-    // update URL, so the user can choose to download
-    // the updated app
-
-    TOGGL_EXPORT void toggl_on_update(
-        void *context,
-        TogglDisplayUpdate);
 
     // After UI callbacks are configured, start pumping UI events
 
@@ -397,6 +411,7 @@ extern "C" {
         const char_t *guid,
         const char_t *value);
 
+    // value is '\t' separated tag list
     TOGGL_EXPORT _Bool toggl_set_time_entry_tags(
         void *context,
         const char_t *guid,
@@ -425,9 +440,17 @@ extern "C" {
         void *context,
         const _Bool use_idle_detection);
 
+    TOGGL_EXPORT _Bool toggl_set_settings_autodetect_proxy(
+        void *context,
+        const _Bool autodetect_proxy);
+
     TOGGL_EXPORT _Bool toggl_set_settings_menubar_timer(
         void *context,
         const _Bool menubar_timer);
+
+    TOGGL_EXPORT _Bool toggl_set_settings_menubar_project(
+        void *context,
+        const _Bool menubar_project);
 
     TOGGL_EXPORT _Bool toggl_set_settings_dock_icon(
         void *context,
@@ -464,6 +487,20 @@ extern "C" {
         const uint64_t proxy_port,
         const char_t *proxy_username,
         const char_t *proxy_password);
+
+    TOGGL_EXPORT _Bool toggl_set_window_settings(
+        void *context,
+        const int64_t window_x,
+        const int64_t window_y,
+        const int64_t window_height,
+        const int64_t window_width);
+
+    TOGGL_EXPORT _Bool toggl_window_settings(
+        void *context,
+        int64_t *window_x,
+        int64_t *window_y,
+        int64_t *window_height,
+        int64_t *window_width);
 
     TOGGL_EXPORT _Bool toggl_logout(
         void *context);
@@ -505,6 +542,14 @@ extern "C" {
 
     // You must free() the result
     TOGGL_EXPORT char_t *toggl_get_update_channel(
+        void *context);
+
+    // You must free() the result
+    TOGGL_EXPORT char_t *toggl_get_user_fullname(
+        void *context);
+
+    // You must free() the result
+    TOGGL_EXPORT char_t *toggl_get_user_email(
         void *context);
 
     TOGGL_EXPORT void toggl_sync(

@@ -2,22 +2,25 @@
 
 #include "../src/https_client.h"
 
+#include <json/json.h>
+
 #include <string>
 #include <sstream>
 
-#include <json/json.h>  // NOLINT
-
 #include "./const.h"
 #include "./formatter.h"
+#include "./netconf.h"
 
 #include "Poco/DeflatingStream.h"
+#include "Poco/Environment.h"
 #include "Poco/Exception.h"
 #include "Poco/InflatingStream.h"
 #include "Poco/Logger.h"
-#include "Poco/NumberParser.h"
 #include "Poco/Net/AcceptCertificateHandler.h"
 #include "Poco/Net/Context.h"
+#include "Poco/Net/HTMLForm.h"
 #include "Poco/Net/HTTPBasicCredentials.h"
+#include "Poco/Net/HTTPCredentials.h"
 #include "Poco/Net/HTTPMessage.h"
 #include "Poco/Net/HTTPRequest.h"
 #include "Poco/Net/HTTPResponse.h"
@@ -28,6 +31,7 @@
 #include "Poco/Net/SecureStreamSocket.h"
 #include "Poco/Net/Session.h"
 #include "Poco/Net/SSLManager.h"
+#include "Poco/NumberParser.h"
 #include "Poco/TextEncoding.h"
 #include "Poco/URI.h"
 #include "Poco/UTF8Encoding.h"
@@ -83,6 +87,9 @@ void ServerStatus::runActivity() {
 
         // Sleep a bit
         for (int i = 0; i < delay_seconds; i++) {
+            if (checker_.isStopped()) {
+                return;
+            }
             Poco::Thread::sleep(1000);
             if (checker_.isStopped()) {
                 return;
@@ -214,7 +221,8 @@ error HTTPSClient::Post(
     const std::string json,
     const std::string basic_auth_username,
     const std::string basic_auth_password,
-    std::string *response_body) {
+    std::string *response_body,
+    Poco::Net::HTMLForm *form) {
     Poco::Int64 status_code(0);
     return request(Poco::Net::HTTPRequest::HTTP_POST,
                    host,
@@ -223,7 +231,8 @@ error HTTPSClient::Post(
                    basic_auth_username,
                    basic_auth_password,
                    response_body,
-                   &status_code);
+                   &status_code,
+                   form);
 }
 
 error HTTPSClient::Get(
@@ -243,9 +252,6 @@ error HTTPSClient::Get(
                    &status_code);
 }
 
-// NB! returns an error only if the request actually fails for some reason.
-// Meaning that HTTP status codes 400, 500 etc *will not* result in error,
-// as the request itself was successfully made to server.
 error HTTPSClient::request(
     const std::string method,
     const std::string host,
@@ -254,7 +260,8 @@ error HTTPSClient::request(
     const std::string basic_auth_username,
     const std::string basic_auth_password,
     std::string *response_body,
-    Poco::Int64 *status_code) {
+    Poco::Int64 *status_code,
+    Poco::Net::HTMLForm *form) {
 
     std::map<std::string, Poco::Timestamp>::const_iterator cit =
         banned_until_.find(host);
@@ -307,18 +314,7 @@ error HTTPSClient::request(
 
         Poco::Net::HTTPSClientSession session(uri.getHost(), uri.getPort(),
                                               context);
-        if (HTTPSClient::Config.UseProxy &&
-                HTTPSClient::Config.ProxySettings.IsConfigured()) {
-            session.setProxy(
-                HTTPSClient::Config.ProxySettings.Host(),
-                static_cast<Poco::UInt16>(
-                    HTTPSClient::Config.ProxySettings.Port()));
-            if (HTTPSClient::Config.ProxySettings.HasCredentials()) {
-                session.setProxyCredentials(
-                    HTTPSClient::Config.ProxySettings.Username(),
-                    HTTPSClient::Config.ProxySettings.Password());
-            }
-        }
+
         session.setKeepAlive(false);
         session.setTimeout(Poco::Timespan(kHTTPClientTimeoutSeconds
                                           * Poco::Timespan::SECONDS));
@@ -331,12 +327,21 @@ error HTTPSClient::request(
 
         std::string encoded_url("");
         Poco::URI::encode(relative_url, "", encoded_url);
+
+        error err = Netconf::ConfigureProxy(host + encoded_url, &session);
+        if (err != noError) {
+            logger().error("Error while configuring proxy: " + err);
+            return err;
+        }
+
         Poco::Net::HTTPRequest req(method,
                                    encoded_url,
                                    Poco::Net::HTTPMessage::HTTP_1_1);
         req.setKeepAlive(false);
+
+        // FIXME: should get content type as parameter instead
         if (payload.size()) {
-            req.setContentType("application/json");
+            req.setContentType(kContentTypeApplicationJSON);
         }
         req.set("User-Agent", HTTPSClient::Config.UserAgent());
         req.setChunkedTransferEncoding(true);
@@ -347,20 +352,30 @@ error HTTPSClient::request(
             cred.authenticate(req);
         }
 
-        std::istringstream requestStream(payload);
-        Poco::DeflatingInputStream gzipRequest(
-            requestStream,
-            Poco::DeflatingStreamBuf::STREAM_GZIP);
-        Poco::DeflatingStreamBuf *pBuff = gzipRequest.rdbuf();
 
-        Poco::Int64 size = pBuff->pubseekoff(0, std::ios::end, std::ios::in);
-        pBuff->pubseekpos(0, std::ios::in);
+        if (!form) {
+            std::istringstream requestStream(payload);
 
-        req.setContentLength(size);
-        req.set("Content-Encoding", "gzip");
+            Poco::DeflatingInputStream gzipRequest(
+                requestStream,
+                Poco::DeflatingStreamBuf::STREAM_GZIP);
+            Poco::DeflatingStreamBuf *pBuff = gzipRequest.rdbuf();
+
+            Poco::Int64 size =
+                pBuff->pubseekoff(0, std::ios::end, std::ios::in);
+            pBuff->pubseekpos(0, std::ios::in);
+
+            req.setContentLength(size);
+            req.set("Content-Encoding", "gzip");
+
+            session.sendRequest(req) << pBuff << std::flush;
+        } else {
+            form->prepareSubmit(req);
+            std::ostream& send = session.sendRequest(req);
+            form->write(send);
+        }
+
         req.set("Accept-Encoding", "gzip");
-
-        session.sendRequest(req) << pBuff << std::flush;
 
         // Log out request contents
         std::stringstream request_string;
@@ -428,7 +443,6 @@ error HTTPSClient::request(
     } catch(const std::string& ex) {
         return ex;
     }
-    return noError;
 }
 
 ServerStatus TogglClient::TogglStatus;
@@ -445,7 +459,8 @@ error TogglClient::request(
     const std::string basic_auth_username,
     const std::string basic_auth_password,
     std::string *response_body,
-    Poco::Int64 *status_code) {
+    Poco::Int64 *status_code,
+    Poco::Net::HTMLForm *form) {
 
     error err = TogglStatus.Status();
     if (err != noError) {
@@ -453,6 +468,10 @@ error TogglClient::request(
         ss << "Will not connect, because of known bad Toggl status: " << err;
         logger().error(ss.str());
         return err;
+    }
+
+    if (monitor_) {
+        monitor_->DisplaySyncState(kSyncStateWork);
     }
 
     err = HTTPSClient::request(
@@ -463,7 +482,12 @@ error TogglClient::request(
         basic_auth_username,
         basic_auth_password,
         response_body,
-        status_code);
+        status_code,
+        form);
+
+    if (monitor_) {
+        monitor_->DisplaySyncState(kSyncStateIdle);
+    }
 
     // We only update Toggl status from this
     // client, not websocket or regular http client,

@@ -14,10 +14,16 @@
 #include "Poco/Timestamp.h"
 
 namespace Poco {
+
 class Logger;
-namespace Util {
+
+namespace Net {
+
+class HTMLForm;
+
 }
-}
+
+}  // namespace Poco
 
 namespace toggl {
 
@@ -34,6 +40,9 @@ class ServerStatus {
 
     error Status();
     void UpdateStatus(const Poco::Int64 status_code);
+    void DisableStatusCheck() {
+        stopStatusCheck("DisableStatusCheck");
+    }
 
  protected:
     void runActivity();
@@ -61,7 +70,8 @@ class HTTPSClientConfig {
     , UseProxy(false)
     , ProxySettings(Proxy())
     , IgnoreCert(false)
-    , CACertPath("") {}
+    , CACertPath("")
+    , AutodetectProxy(true) {}
     ~HTTPSClientConfig() {}
 
     std::string AppName;
@@ -70,8 +80,9 @@ class HTTPSClientConfig {
     toggl::Proxy ProxySettings;
     bool IgnoreCert;
     std::string CACertPath;
+    bool AutodetectProxy;
 
-    std::string UserAgent() {
+    std::string UserAgent() const {
         return AppName + "/" + AppVersion;
     }
 };
@@ -81,15 +92,16 @@ class HTTPSClient {
     HTTPSClient() {}
     virtual ~HTTPSClient() {}
 
-    virtual error Post(
+    error Post(
         const std::string host,
         const std::string relative_url,
         const std::string json,
         const std::string basic_auth_username,
         const std::string basic_auth_password,
-        std::string *response_body);
+        std::string *response_body,
+        Poco::Net::HTMLForm *form = 0);
 
-    virtual error Get(
+    error Get(
         const std::string host,
         const std::string relative_url,
         const std::string basic_auth_username,
@@ -107,7 +119,8 @@ class HTTPSClient {
         const std::string basic_auth_username,
         const std::string basic_auth_password,
         std::string *response_body,
-        Poco::Int64 *response_status);
+        Poco::Int64 *response_status,
+        Poco::Net::HTMLForm *form = 0);
 
     virtual Poco::Logger &logger() const;
 
@@ -118,8 +131,17 @@ class HTTPSClient {
     error statusCodeToError(const Poco::Int64 status_code) const;
 };
 
+class SyncStateMonitor {
+ public:
+    virtual ~SyncStateMonitor() {}
+
+    virtual void DisplaySyncState(const Poco::Int64 state) = 0;
+};
+
 class TogglClient : public HTTPSClient {
  public:
+    explicit TogglClient(SyncStateMonitor *monitor = 0) : monitor_(monitor) {}
+
     static ServerStatus TogglStatus;
 
  protected:
@@ -131,9 +153,13 @@ class TogglClient : public HTTPSClient {
         const std::string basic_auth_username,
         const std::string basic_auth_password,
         std::string *response_body,
-        Poco::Int64 *response_status);
+        Poco::Int64 *response_status,
+        Poco::Net::HTMLForm *form = 0);
 
     virtual Poco::Logger &logger() const;
+
+ private:
+    SyncStateMonitor *monitor_;
 };
 
 }  // namespace toggl

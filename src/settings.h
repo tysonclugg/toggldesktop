@@ -12,17 +12,20 @@ class Settings {
     Settings()
         : use_idle_detection(false)
     , menubar_timer(false)
+    , menubar_project(false)
     , dock_icon(false)
     , on_top(false)
     , reminder(false)
     , idle_minutes(0)
     , focus_on_shortcut(true)
     , reminder_minutes(0)
-    , manual_mode(false) {}
+    , manual_mode(false)
+    , autodetect_proxy(true) {}
     ~Settings() {}
 
     bool use_idle_detection;
     bool menubar_timer;
+    bool menubar_project;
     bool dock_icon;
     bool on_top;
     bool reminder;
@@ -30,6 +33,7 @@ class Settings {
     bool focus_on_shortcut;
     Poco::UInt64 reminder_minutes;
     bool manual_mode;
+    bool autodetect_proxy;
 };
 
 }  // namespace toggl

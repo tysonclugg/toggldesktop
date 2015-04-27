@@ -158,9 +158,7 @@ TEST(Database, SelectTimelineBatchIgnoresTooOldEntries) {
 
     TimelineEvent ready_for_upload = timeline_events[0];
     ASSERT_EQ(good.user_id, ready_for_upload.user_id);
-    ASSERT_EQ(
-        (good.start_time / kTimelineChunkSeconds) * kTimelineChunkSeconds,
-        ready_for_upload.start_time);
+    ASSERT_EQ(good.start_time, ready_for_upload.start_time);
     ASSERT_EQ(
         (good.end_time - good.start_time) + (good2.end_time - good2.start_time),
         ready_for_upload.end_time - ready_for_upload.start_time);
@@ -236,6 +234,37 @@ TEST(User, DeletesZombies) {
     te = user.related.TimeEntryByID(89818605);
     ASSERT_TRUE(te);
     ASSERT_TRUE(te->IsMarkedAsDeletedOnServer());
+}
+
+TEST(Database, LoadUserByEmail) {
+    testing::Database db;
+
+    User user;
+    ASSERT_EQ(noError,
+              user.LoadUserAndRelatedDataFromJSONString(loadTestData(), true));
+
+    std::vector<ModelChange> changes;
+    ASSERT_EQ(noError, db.instance()->SaveUser(&user, true, &changes));
+
+    User user2;
+    ASSERT_EQ(noError,
+              db.instance()->LoadUserByEmail("johnsmith@toggl.com", &user2));
+
+    ASSERT_EQ(user.ID(), user2.ID());
+}
+
+TEST(Database, LoadUserByEmailWithoutEmail) {
+    testing::Database db;
+
+    User user;
+    ASSERT_NE(noError, db.instance()->LoadUserByEmail("", &user));
+}
+
+TEST(Database, LoadUserByEmailWithNonexistantEmail) {
+    testing::Database db;
+
+    User user;
+    ASSERT_EQ(noError, db.instance()->LoadUserByEmail("foo@bar.com", &user));
 }
 
 TEST(Database, AllowsSameEmail) {
@@ -647,7 +676,7 @@ TEST(User, ParsesAndSavesData) {
     ASSERT_EQ(uint(1), user.related.Clients.size());
 
     ASSERT_EQ(uint(878318), user.related.Clients[0]->ID());
-    ASSERT_EQ(uint(123456789), user.related.Clients[0]->WID());
+    ASSERT_EQ(uint(123456788), user.related.Clients[0]->WID());
     ASSERT_EQ("Big Client", user.related.Clients[0]->Name());
     ASSERT_EQ("59b464cd-0f8e-e601-ff44-f135225a6738",
               user.related.Clients[0]->GUID());
@@ -1442,7 +1471,6 @@ TEST(JSON, ConvertTimelineToJSON) {
         ASSERT_EQ(std::size_t(1), root.size());
 
         const Json::Value v = root[0];
-        ASSERT_EQ("true", v["idle"].asString());
         ASSERT_EQ("timeline", v["created_with"].asString());
         ASSERT_EQ(desktop_id, v["desktop_id"].asString());
         ASSERT_EQ(event.start_time, v["start_time"].asInt());
@@ -1613,6 +1641,105 @@ TEST(User, DurationFormat) {
     u.SetDurationFormat("decimal");
     ASSERT_EQ("decimal", u.DurationFormat());
     ASSERT_EQ("decimal", Formatter::DurationFormat);
+}
+
+TEST(BaseModel, LoadFromDataStringWithInvalidJSON) {
+    User u;
+    error err = u.LoadFromDataString("foobar");
+    ASSERT_NE(noError, err);
+}
+
+TEST(BaseModel, LoadFromDataString) {
+    User u;
+    error err = u.LoadFromDataString(loadTestData());
+    ASSERT_EQ(noError, err);
+}
+
+TEST(BaseModel, LoadFromJSONStringWithEmptyString) {
+    User u;
+    error err = u.LoadFromJSONString("");
+    ASSERT_EQ(noError, err);
+}
+
+TEST(BaseModel, LoadFromJSONStringWithInvalidString) {
+    User u;
+    error err = u.LoadFromJSONString("foobar");
+    ASSERT_NE(noError, err);
+}
+
+TEST(BaseModel, BatchUpdateJSONWithoutGUID) {
+    TimeEntry t;
+    Json::Value v;
+    error err = t.BatchUpdateJSON(&v);
+    ASSERT_NE(noError, err);
+}
+
+TEST(BaseModel, BatchUpdateJSON) {
+    TimeEntry t;
+    t.EnsureGUID();
+    Json::Value v;
+    error err = t.BatchUpdateJSON(&v);
+    ASSERT_EQ(noError, err);
+}
+
+TEST(BaseModel, BatchUpdateJSONForDelete) {
+    TimeEntry t;
+    t.EnsureGUID();
+    t.SetID(123);
+    t.SetDeletedAt(time(0));
+    Json::Value v;
+    error err = t.BatchUpdateJSON(&v);
+    ASSERT_EQ(noError, err);
+}
+
+TEST(BaseModel, BatchUpdateJSONForPut) {
+    TimeEntry t;
+    t.EnsureGUID();
+    t.SetID(123);
+    t.SetDescription("test");
+    Json::Value v;
+    error err = t.BatchUpdateJSON(&v);
+    ASSERT_EQ(noError, err);
+}
+
+TEST(BatchUpdateResult, Error) {
+    BatchUpdateResult b;
+    ASSERT_EQ(noError, b.Error());
+}
+
+TEST(BatchUpdateResult, ErrorWithStatusCode200) {
+    BatchUpdateResult b;
+    b.StatusCode = 200;
+    ASSERT_EQ(noError, b.Error());
+}
+
+TEST(BatchUpdateResult, ErrorWithStatusCode400) {
+    BatchUpdateResult b;
+    b.StatusCode = 400;
+    b.Body = "null";
+    ASSERT_NE(noError, b.Error());
+}
+
+TEST(BatchUpdateResult, String) {
+    BatchUpdateResult b;
+    ASSERT_NE("", b.String());
+}
+
+TEST(BatchUpdateResult, ResourceIsGone) {
+    BatchUpdateResult b;
+    ASSERT_FALSE(b.ResourceIsGone());
+}
+
+TEST(BatchUpdateResult, ResourceIsGoneBecauseOfDeleteMethod) {
+    BatchUpdateResult b;
+    b.Method = "DELETE";
+    ASSERT_TRUE(b.ResourceIsGone());
+}
+
+TEST(BatchUpdateResult, ResourceIsGoneBecauseOf404) {
+    BatchUpdateResult b;
+    b.StatusCode = 404;
+    ASSERT_TRUE(b.ResourceIsGone());
 }
 
 }  // namespace toggl

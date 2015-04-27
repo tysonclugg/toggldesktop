@@ -604,7 +604,7 @@ namespace TogglDesktop
 
             bool is_public = checkBoxPublic.Checked;
             ulong workspaceID = timeEntry.WID;
-            if (comboBoxWorkspace.Items.Count > 0)
+            if (comboBoxWorkspace.Items.Count == 1)
             {
                 workspaceID = ((Toggl.Model)comboBoxWorkspace.Items[0]).ID;
             }
@@ -712,8 +712,6 @@ namespace TogglDesktop
 
         private void selectProjectAutoComplete()
         {
-            comboBoxProject.ResetListBox();
-
             object selected = comboBoxProject.autoCompleteListBox.SelectedItem;
             if (null == selected)
             {
@@ -721,6 +719,11 @@ namespace TogglDesktop
             }
 
             Toggl.AutocompleteItem item = (Toggl.AutocompleteItem)selected;
+            if (item.ProjectID == 0)
+            {
+                return;
+            }
+            comboBoxProject.ResetListBox();
             comboBoxProject.Text = item.Text;
 
             comboBoxProject.ResetListBox();
@@ -832,6 +835,7 @@ namespace TogglDesktop
         {
             if (te.Tags != null)
             {
+                int count = 0;
                 string[] tags = te.Tags.Split(Toggl.TagSeparator.ToCharArray());
 
                 // Tick selected Tags
@@ -840,7 +844,10 @@ namespace TogglDesktop
                     int index = checkedListBoxTags.Items.IndexOf(tags[i]);
                     if (index != -1)
                     {
-                        checkedListBoxTags.SetItemChecked(index, true);
+                        checkedListBoxTags.Items.RemoveAt(index);
+                        checkedListBoxTags.Items.Insert(count, tags[i]);
+                        checkedListBoxTags.SetItemChecked(count, true);
+                        count++;
                     }
                 }
             }
@@ -919,7 +926,11 @@ namespace TogglDesktop
                 return;
             }
 
-            ulong workspaceID = ((Toggl.Model)comboBoxWorkspace.Items[0]).ID;
+            ulong workspaceID = timeEntry.WID;
+            if (comboBoxWorkspace.Items.Count == 1)
+            {
+                workspaceID = ((Toggl.Model)comboBoxWorkspace.Items[0]).ID;
+            }
             if (comboBoxWorkspace.Items.Count > 1)
             {
                 workspaceID = selectedItemID(comboBoxWorkspace);

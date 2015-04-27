@@ -88,13 +88,15 @@ error TimelineUploader::process() {
 error TimelineUploader::upload(TimelineBatch *batch) {
     TogglClient client;
 
-    std::stringstream out;
-    out << "Uploading " << batch->Events().size()
-        << " event(s) of user " << batch->UserID();
-    logger().debug(out.str());
+    std::stringstream ss;
+    ss << "Uploading " << batch->Events().size()
+       << " event(s) of user " << batch->UserID();
+    logger().debug(ss.str());
 
     std::string json = convertTimelineToJSON(batch->Events(),
                        batch->DesktopID());
+    logger().debug(json);
+
     std::string response_body("");
     return client.Post(kTimelineUploadURL,
                        "/api/v8/timeline",
@@ -115,12 +117,8 @@ std::string convertTimelineToJSON(
             ++i) {
         const TimelineEvent &event = *i;
         Json::Value n;
-        if (event.idle) {
-            n["idle"] = true;
-        } else {
-            n["filename"] = event.filename;
-            n["title"] = event.title;
-        }
+        n["filename"] = event.filename;
+        n["title"] = event.title;
         n["start_time"] = Json::Int64(event.start_time);
         n["end_time"] = Json::Int64(event.end_time);
         n["desktop_id"] = desktop_id;

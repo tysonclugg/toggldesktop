@@ -98,6 +98,8 @@ class MainWindowController : public QMainWindow {
     IdleNotificationDialog *idleNotificationDialog;
 
     QIcon icon;
+    QIcon iconDisabled;
+    QSystemTrayIcon *trayIcon;
 
     bool reminder;
 
@@ -109,6 +111,10 @@ class MainWindowController : public QMainWindow {
     void connectMenuActions();
     void connectMenuAction(QAction *action);
     void enableMenuActions();
+
+    bool hasTrayIconCached;
+
+    bool hasTrayIcon() const;
 };
 
 #endif  // SRC_UI_LINUX_TOGGLDESKTOP_MAINWINDOWCONTROLLER_H_

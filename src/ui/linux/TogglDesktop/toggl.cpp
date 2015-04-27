@@ -31,6 +31,10 @@ void on_display_app(const _Bool open) {
     TogglApi::instance->displayApp(open);
 }
 
+void on_display_update(const char *url) {
+    TogglApi::instance->displayUpdate(QString(url));
+}
+
 void on_display_error(
     const char *errmsg,
     const _Bool user_error) {
@@ -135,11 +139,6 @@ void on_display_timer_state(
     TogglApi::instance->displayStoppedTimerState();
 }
 
-void on_display_update(
-    const char *url) {
-    TogglApi::instance->displayUpdate(QString(url));
-}
-
 void on_display_idle_notification(
     const char *guid,
     const char *since,
@@ -199,6 +198,7 @@ TogglApi::TogglApi(
     toggl_set_cacert_path(ctx, cacertPath.toUtf8().constData());
 
     toggl_on_show_app(ctx, on_display_app);
+    toggl_on_update(ctx, on_display_update);
     toggl_on_error(ctx, on_display_error);
     toggl_on_online_state(ctx, on_display_online_state);
     toggl_on_url(ctx, on_display_url);
@@ -215,7 +215,6 @@ TogglApi::TogglApi(
     toggl_on_settings(ctx, on_display_settings);
     toggl_on_timer_state(ctx, on_display_timer_state);
     toggl_on_idle_notification(ctx, on_display_idle_notification);
-    toggl_on_update(ctx, on_display_update);
 
     char *env = toggl_environment(ctx);
     if (env) {
@@ -365,6 +364,10 @@ void TogglApi::setIdleSeconds(u_int64_t idleSeconds) {
 bool TogglApi::setSettingsUseIdleDetection(const bool useIdleDetection) {
     return toggl_set_settings_use_idle_detection(ctx,
             useIdleDetection);
+}
+
+bool TogglApi::setSettingsAutodetectProxy(const bool value) {
+    return toggl_set_settings_autodetect_proxy(ctx, value);
 }
 
 bool TogglApi::setSettingsReminder(const bool reminder) {

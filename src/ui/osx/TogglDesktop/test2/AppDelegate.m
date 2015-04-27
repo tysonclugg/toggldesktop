@@ -61,6 +61,8 @@
 // Environment (development, production, etc)
 @property NSString *environment;
 
+@property NSString *version;
+
 // For testing crash reporter
 @property BOOL forceCrash;
 
@@ -69,6 +71,9 @@
 
 // Show or not show menubar timer
 @property BOOL showMenuBarTimer;
+
+// Show or not show menubar project
+@property BOOL showMenuBarProject;
 
 // Manual mode
 @property NSMenuItem *manualModeMenuItem;
@@ -92,7 +97,7 @@ BOOL manualMode = NO;
 {
 	NSLog(@"applicationDidFinishLaunching");
 
-	if (![self.environment isEqualToString:@"production"])
+	if (![self.environment isEqualToString:@"production"] && ![self.version isEqualToString:@"7.0.0"])
 	{
 		// Turn on UI constraint debugging, if not in production
 		[[NSUserDefaults standardUserDefaults] setBool:YES
@@ -167,6 +172,14 @@ BOOL manualMode = NO;
 	[[NSNotificationCenter defaultCenter] addObserver:self
 											 selector:@selector(startDisplayOnlineState:)
 												 name:kDisplayOnlineState
+											   object:nil];
+	[[NSNotificationCenter defaultCenter] addObserver:self
+											 selector:@selector(startDisplaySyncState:)
+												 name:kDisplaySyncState
+											   object:nil];
+	[[NSNotificationCenter defaultCenter] addObserver:self
+											 selector:@selector(startDisplayUnsyncedItems:)
+												 name:kDisplayUnsyncedItems
 											   object:nil];
 	[[NSNotificationCenter defaultCenter] addObserver:self
 											 selector:@selector(startDisplayTimerState:)
@@ -404,6 +417,9 @@ BOOL manualMode = NO;
 		[self updateStatusItem];
 	}
 
+	// Show/Hide project in menubar
+	self.showMenuBarProject = cmd.settings.menubar_project;
+
 	// Show/Hide dock icon
 	ProcessSerialNumber psn = { 0, kCurrentProcess };
 	if (cmd.settings.dock_icon)
@@ -501,16 +517,69 @@ BOOL manualMode = NO;
 	[self updateStatusItem];
 }
 
+- (void)startDisplaySyncState:(NSNotification *)notification
+{
+	[self performSelectorOnMainThread:@selector(displaySyncState:)
+						   withObject:notification.object
+						waitUntilDone:NO];
+}
+
+- (void)displaySyncState:(NSNumber *)state
+{
+	NSAssert([NSThread isMainThread], @"Rendering stuff should happen on main thread");
+
+	if ([state intValue])
+	{
+		// FIXME: display syncing spinner
+	}
+	else
+	{
+		// FIXME: hide syncing spinner
+	}
+}
+
+- (void)startDisplayUnsyncedItems:(NSNotification *)notification
+{
+	[self performSelectorOnMainThread:@selector(displayUnsyncedItems:)
+						   withObject:notification.object
+						waitUntilDone:NO];
+}
+
+- (void)displayUnsyncedItems:(NSNumber *)count
+{
+	NSAssert([NSThread isMainThread], @"Rendering stuff should happen on main thread");
+
+	NSLog(@"displayUnsyncedItems %d", [count intValue]);
+
+	// FIXME: hide/show number of unsynced time entries
+}
+
 - (void)updateStatusItem
 {
 	NSString *title = @"";
 
-	if (self.showMenuBarTimer && self.lastKnownRunningTimeEntry && self.lastKnownUserID)
+	if (self.lastKnownRunningTimeEntry && self.lastKnownUserID)
 	{
-		title = [title stringByAppendingString:@" "];
-		char *str = toggl_format_tracked_time_duration(self.lastKnownRunningTimeEntry.duration_in_seconds);
-		title = [title stringByAppendingString:[NSString stringWithUTF8String:str]];
-		free(str);
+		if (self.showMenuBarProject)
+		{
+			title = [title stringByAppendingString:self.lastKnownRunningTimeEntry.ProjectLabel];
+		}
+
+		if (self.showMenuBarTimer)
+		{
+			char *str = toggl_format_tracked_time_duration(self.lastKnownRunningTimeEntry.duration_in_seconds);
+
+			if (self.showMenuBarProject)
+			{
+				title = [NSString stringWithFormat:@"%@ (%@)", title, [NSString stringWithUTF8String:str]];
+			}
+			else
+			{
+				title = [title stringByAppendingString:[NSString stringWithUTF8String:str]];
+			}
+
+			free(str);
+		}
 	}
 
 	NSString *key = nil;
@@ -880,6 +949,7 @@ const NSString *appName = @"osx_native_app";
 
 	NSDictionary *infoDict = [[NSBundle mainBundle] infoDictionary];
 	self.environment = infoDict[@"KopsikEnvironment"];
+	self.version = infoDict[@"CFBundleShortVersionString"];
 
 	// Disallow duplicate instances in production
 	if ([self.environment isEqualToString:@"production"])
@@ -904,13 +974,13 @@ const NSString *appName = @"osx_native_app";
 	toggl_set_log_path([self.log_path UTF8String]);
 	toggl_set_log_level([self.log_level UTF8String]);
 
-	NSString *version = infoDict[@"CFBundleShortVersionString"];
-
-	ctx = toggl_context_init([appName UTF8String], [version UTF8String]);
+	ctx = toggl_context_init([appName UTF8String], [self.version UTF8String]);
 
 	// Using sparkle instead of self updater:
 	toggl_disable_update_check(ctx);
 
+	toggl_on_sync_state(ctx, on_sync_state);
+	toggl_on_unsynced_items(ctx, on_unsynced_items);
 	toggl_on_show_app(ctx, on_app);
 	toggl_on_error(ctx, on_error);
 	toggl_on_online_state(ctx, on_online_state);
@@ -929,7 +999,7 @@ const NSString *appName = @"osx_native_app";
 	toggl_on_timer_state(ctx, on_timer_state);
 	toggl_on_idle_notification(ctx, on_idle_notification);
 
-	NSLog(@"Version %@", version);
+	NSLog(@"Version %@", self.version);
 
 	NSString *cacertPath = [[NSBundle mainBundle] pathForResource:@"cacert" ofType:@"pem"];
 	toggl_set_cacert_path(ctx, [cacertPath UTF8String]);
@@ -1136,6 +1206,18 @@ void on_online_state(const int64_t state)
 {
 	[[NSNotificationCenter defaultCenter] postNotificationName:kDisplayOnlineState
 														object:[NSNumber numberWithLong:state]];
+}
+
+void on_sync_state(const int64_t state)
+{
+	[[NSNotificationCenter defaultCenter] postNotificationName:kDisplaySyncState
+														object:[NSNumber numberWithLong:state]];
+}
+
+void on_unsynced_items(const int64_t count)
+{
+	[[NSNotificationCenter defaultCenter] postNotificationName:kDisplayUnsyncedItems
+														object:[NSNumber numberWithLong:count]];
 }
 
 void on_login(const _Bool open, const uint64_t user_id)

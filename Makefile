@@ -34,6 +34,10 @@ ifndef QMAKE
 QMAKE=qmake
 endif
 
+ifndef MSBUILD
+MSBUILD=/cygdrive/c/Program\ Files/MSBuild/12.0/Bin/MSBuild.exe
+endif
+
 ifeq ($(uname), Darwin)
 executable=./src/ui/osx/TogglDesktop/build/Release/TogglDesktop.app/Contents/MacOS/TogglDesktop
 pocolib=$(pocodir)/lib/Darwin/x86_64/
@@ -46,7 +50,13 @@ pocolib=$(pocodir)/lib/Linux/$(architecture)
 osname=linux
 endif
 
-ifeq ($(uname), Darwin)
+ifneq (, $(findstring CYGWIN, $(uname) ))
+executable=./src/ui/windows/TogglDesktop/TogglDesktop/bin/release/TogglDesktop.exe
+pocolib=$(pocodir)/lib/CYGWIN/i686
+osname=windows
+endif
+
+ifeq ($(osname), mac)
 cflags=-g -Wall -Wextra -Wno-deprecated -Wno-unused-parameter -Wunreachable-code -DLUA_USE_MACOSX \
 	-I$(openssldir)/include \
 	-I$(GTEST_ROOT)/include \
@@ -63,7 +73,7 @@ cflags=-g -Wall -Wextra -Wno-deprecated -Wno-unused-parameter -Wunreachable-code
 	-DNDEBUG
 endif
 
-ifeq ($(uname), Linux)
+ifeq ($(osname), linux)
 cflags=-g -Wall -Wextra -Wno-deprecated -Wno-unused-parameter -static \
 	-I$(openssldir)/include \
 	-I$(GTEST_ROOT)/include \
@@ -81,7 +91,25 @@ cflags=-g -Wall -Wextra -Wno-deprecated -Wno-unused-parameter -static \
 	-DNDEBUG
 endif
 
-ifeq ($(uname), Darwin)
+ifeq ($(osname), windows)
+cflags=-g -Wall -Wextra -Wno-deprecated -Wno-unused-parameter -static \
+	-I$(openssldir)/inc32 \
+	-I$(GTEST_ROOT)/include \
+	-I$(GTEST_ROOT) \
+	-I$(pocodir)/Foundation/include \
+	-I$(pocodir)/Util/include \
+	-I$(pocodir)/Data/include \
+	-I$(pocodir)/Data/SQLite/src \
+	-I$(pocodir)/Data/SQLite/include \
+	-I$(pocodir)/Crypto/include \
+	-I$(pocodir)/Net/include \
+	-I$(pocodir)/NetSSL_OpenSSL/include \
+	-I$(jsoncppdir) \
+	-Ithird_party/lua/install/include \
+	-DNDEBUG
+endif
+
+ifeq ($(osname), mac)
 libs=-framework Carbon \
 	-L$(pocolib) \
 	-lPocoDataSQLite \
@@ -102,7 +130,7 @@ libs=-framework Carbon \
 	-ldl
 endif
 
-ifeq ($(uname), Linux)
+ifeq ($(osname), linux)
 libs=-lX11 \
 	-L$(pocolib) \
 	-lPocoDataSQLite \
@@ -124,6 +152,25 @@ libs=-lX11 \
 	-ldl
 endif
 
+ifeq ($(osname), windows)
+libs= -L$(pocolib) \
+	-lPocoDataSQLite \
+	-lPocoData \
+	-lPocoNet \
+	-lPocoNetSSL \
+	-lPocoCrypto \
+	-lPocoUtil \
+	-lPocoXML \
+	-lPocoJSON \
+	-lPocoFoundation \
+	-lpthread \
+	-L$(openssldir) \
+	-lrt \
+	-lpsapi \
+        -Lthird_party/lua/install/lib \
+	-llua
+endif
+
 cxx=g++ -fprofile-arcs -ftest-coverage
 
 default: app
@@ -131,28 +178,41 @@ default: app
 clean: clean_ui clean_lib clean_test
 	rm -rf build coverage
 
-ifeq ($(uname), Linux)
+ifeq ($(osname), linux)
 clean_lib:
 	rm -rf src/lib/linux/TogglDesktopLibrary/build && \
 	(cd src/lib/linux/TogglDesktopLibrary && $(QMAKE) && make clean)
 endif
-ifeq ($(uname), Darwin)
+
+ifeq ($(osname), mac)
 clean_lib:
 	rm -rf src/lib/osx/build
 endif
 
-ifeq ($(uname), Linux)
+ifeq ($(osname), windows)
+clean_lib:
+	$(MSBUILD) src/lib/windows/TogglDesktopDLL/TogglDesktopDLL.vcxproj /p:Configuration=Release /target:Clean
+endif
+
+ifeq ($(osname), linux)
 clean_ui: clean-bugsnag-qt
 	(cd src/ui/linux/TogglDesktop && $(QMAKE) && make clean) && \
 	rm -rf src/ui/linux/TogglDesktop/build
 endif
-ifeq ($(uname), Darwin)
+
+ifeq ($(osname), mac)
 clean_ui:
 	rm -rf src/ui/osx/TogglDesktop/build third_party/TFDatePicker/TFDatePicker/build TogglDesktop*.dmg TogglDesktop*.tar.gz
 endif
 
+ifeq ($(osname), windows)
+clean_ui:
+	$(MSBUILD) src/ui/windows/TogglDesktop/TogglDesktop.sln /p:Configuration=Release /t:TogglDesktop:Clean
+endif
+
 clean_test:
 	rm -rf test/*
+	mkdir -p test
 
 lint:
 	./third_party/cpplint/cpplint.py $(source_dirs)
@@ -166,12 +226,13 @@ fmt: fmt_lib fmt_ui
 
 app: lib ui
 
-ifeq ($(uname), Darwin)
+ifeq ($(osname), mac)
 lib:
 	xcodebuild -project src/lib/osx/TogglDesktopLibrary.xcodeproj && \
 	!(otool -L ./src/ui/osx/TogglDesktop/build/Release/TogglDesktop.app/Contents/Frameworks/*.dylib | grep "Users" && echo "Shared library should not contain hardcoded paths!")
 endif
-ifeq ($(uname), Linux)
+
+ifeq ($(osname), linux)
 lib:
 	cd src/lib/linux/TogglDesktopLibrary && $(QMAKE) && make && \
 	cd ../../../../ && \
@@ -187,17 +248,27 @@ lib:
 	cp $(pocodir)/lib/Linux/$(architecture)/libPocoJSON.so.30 src/lib/linux/TogglDesktopLibrary/build/release
 endif
 
+ifeq ($(osname), windows)
+lib:
+	$(MSBUILD) src/ui/windows/TogglDesktop/TogglDesktop.sln /p:Configuration=Release /t:TogglDesktopDLL
+endif
 
-ifeq ($(uname), Darwin)
+ifeq ($(osname), mac)
 ui:
 	xcodebuild -project src/ui/osx/TogglDesktop/TogglDesktop.xcodeproj -sdk macosx10.9 && \
 	!(otool -L $(executable) | grep "Users" && echo "Executable should not contain hardcoded paths!")
 endif
-ifeq ($(uname), Linux)
+
+ifeq ($(osname), linux)
 ui: bugsnag-qt
 	cd src/ui/linux/TogglDesktop && $(QMAKE) && make && \
 	cd ../../../../ && \
 	cp src/ssl/cacert.pem src/ui/linux/TogglDesktop/build/release
+endif
+
+ifeq ($(osname), windows)
+ui:
+	$(MSBUILD) src/ui/windows/TogglDesktop/TogglDesktop.sln /p:Configuration=Release
 endif
 
 clean-bugsnag-qt:
@@ -210,15 +281,6 @@ bugsnag-qt: clean-bugsnag-qt
 run: app
 	$(executable)
 
-sikuli: osx
-	(pkill TogglDesktop) || true
-	rm -rf kopsik_sikuli.db kopsik_sikuli.log
-	$(executable) \
-	--api_url http://0.0.0.0:8080 \
-	--websocket_url http://0.0.0.0:8088 \
-	--db_path kopsik_sikuli.db \
-	--log_path kopsik_sikuli.log 
-
 clean_deps:
 	cd $(pocodir) && (make clean || true)
 	rm -rf $(pocodir)/**/.dep
@@ -227,29 +289,50 @@ clean_deps:
 
 deps: clean_deps openssl poco lua
 
-ifeq ($(uname), Linux)
+ifeq ($(osname), linux)
 lua:
 	cd third_party/lua && make linux && make local
 endif
-ifeq ($(uname), Darwin)
+
+ifeq ($(osname), mac)
 lua:
 	cd third_party/lua && make macosx && make local
 endif
 
+ifeq ($(osname), windows)
+lua:
+	cd third_party/lua && make generic && make local
+endif
+
+ifeq ($(osname), mac)
 openssl:
-ifeq ($(uname), Darwin)
 	cd $(openssldir) && ./config -fPIC no-shared no-dso && ./Configure darwin64-x86_64-cc && make
 endif
-ifeq ($(uname), Linux)
+
+ifeq ($(osname), linux)
+openssl:
 	cd $(openssldir) && ./config -fPIC shared no-dso && make
 endif
 
+ifeq ($(osname), windows)
+openssl:
+	cd $(openssldir) && ./config shared no-dso && ./Configure Cygwin && make
+endif
+
 poco:
+ifeq ($(osname), windows)
+	cd $(pocodir) && \
+	./configure --omit=Data/ODBC,Data/MySQL,Zip,JSON,MongoDB,PageCompiler,PageCompiler/File2Page --no-tests --no-samples \
+	--sqlite-thread-safe=0 \
+	--include-path=$(pwd)/$(openssldir)/inc32 --library-path=$(pwd)/$(openssldir) && \
+	make
+else
 	cd $(pocodir) && \
 	./configure --omit=Data/ODBC,Data/MySQL,Zip,JSON,MongoDB,PageCompiler,PageCompiler/File2Page --no-tests --no-samples --cflags=-fPIC \
 	--sqlite-thread-safe=1 \
 	--include-path=$(pwd)/$(openssldir)/include --library-path=$(pwd)/$(openssldir) && \
 	make
+endif
 
 third_party/google-astyle/build/google-astyle:
 	cd third_party/google-astyle && mkdir -p build && g++ *.cpp -o build/google-astyle
@@ -265,6 +348,9 @@ build/jsoncpp.o: $(jsoncppdir)/jsoncpp.cpp
 
 build/proxy.o: src/proxy.cc
 	$(cxx) $(cflags) -c src/proxy.cc -o build/proxy.o
+
+build/netconf.o: src/netconf.cc
+	$(cxx) $(cflags) -c src/netconf.cc -o build/netconf.o
 
 build/https_client.o: src/https_client.cc
 	$(cxx) $(cflags) -c src/https_client.cc -o build/https_client.o
@@ -361,6 +447,7 @@ build/test/gtest-all.o: $(GTEST_ROOT)/src/gtest-all.cc
 
 objects: build/jsoncpp.o \
 	build/proxy.o \
+	build/netconf.o \
 	build/https_client.o \
 	build/websocket_client.o \
 	build/base_model.o \
@@ -394,26 +481,30 @@ test_objects: build/test/gtest-all.o \
 	build/test/app_test.o \
 	build/test/toggl_api_test.o
 
-uitest:
-	rm -rf test
-	mkdir -p test
+uitest: clean_test
+ifeq ($(osname), windows)
+	$(executable) --script-path src/test/uitest.lua
+else
 	$(executable) \
 		--script-path $(pwd)/src/test/uitest.lua \
 		--log-path $(pwd)/test/uitest.log \
 		--db-path $(pwd)/test/uitest.db
+endif
 
 toggl_test: clean_test objects test_objects
 	mkdir -p test
 	$(cxx) -coverage -o test/toggl_test build/*.o build/test/*.o $(libs)
 
 test_lib: lua toggl_test
-ifeq ($(uname), Linux)
+ifeq ($(osname), linux)
 	cp src/ssl/cacert.pem test/.
-	cp -r $(pocodir)/lib/Linux/$(architecture)/*.so* test/.
+	cp -r $(pocodir)/lib/Linux/$(architecture)/* test/.
 	cp -r $(openssldir)/*so* test/.
 	cd test && LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH ./toggl_test --gtest_shuffle
 else
-	cd test && ./toggl_test
+	cp src/ssl/cacert.pem test/.
+	cp -r $(pocolib)/* test/.
+	cd test && ./toggl_test --gtest_shuffle
 endif
 
 test: test_lib
@@ -423,8 +514,9 @@ lcov: test
 	genhtml -q -o coverage app.info
 
 coverage: lcov
+	@echo "open coverage/index.html to view coverage report"
 
 loco:
-ifeq ($(uname), Darwin)
+ifeq ($(osname), mac)
 	xcodebuild -exportLocalizations -localizationPath src/ui/osx/localization -project src/ui/osx/TogglDesktop/TogglDesktop.xcodeproj -exportLanguage et
 endif

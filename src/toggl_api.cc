@@ -7,9 +7,7 @@
 #include <cstring>
 #include <set>
 
-#ifndef _WIN32
 #include "./toggl_api_lua.h"
-#endif
 
 #include "./const.h"
 #include "./context.h"
@@ -65,10 +63,22 @@ _Bool toggl_set_settings_use_idle_detection(
     return app(context)->SetSettingsUseIdleDetection(use_idle_detection);
 }
 
+_Bool toggl_set_settings_autodetect_proxy(
+    void *context,
+    const _Bool autodetect_proxy) {
+    return app(context)->SetSettingsAutodetectProxy(autodetect_proxy);
+}
+
 _Bool toggl_set_settings_menubar_timer(
     void *context,
     const _Bool menubar_timer) {
     return app(context)->SetSettingsMenubarTimer(menubar_timer);
+}
+
+_Bool toggl_set_settings_menubar_project(
+    void *context,
+    const _Bool menubar_project) {
+    return app(context)->SetSettingsMenubarProject(menubar_project);
 }
 
 _Bool toggl_set_settings_dock_icon(
@@ -113,6 +123,41 @@ _Bool toggl_set_settings_reminder_minutes(
     return app(context)->SetSettingsReminderMinutes(reminder_minutes);
 }
 
+_Bool toggl_set_window_settings(
+    void *context,
+    const int64_t window_x,
+    const int64_t window_y,
+    const int64_t window_height,
+    const int64_t window_width) {
+
+    return app(context)->SaveWindowSettings(
+        window_x,
+        window_y,
+        window_height,
+        window_width);
+}
+
+_Bool toggl_window_settings(
+    void *context,
+    int64_t *window_x,
+    int64_t *window_y,
+    int64_t *window_height,
+    int64_t *window_width) {
+
+    poco_check_ptr(context);
+
+    poco_check_ptr(window_x);
+    poco_check_ptr(window_y);
+    poco_check_ptr(window_height);
+    poco_check_ptr(window_width);
+
+    return app(context)->LoadWindowSettings(
+        window_x,
+        window_y,
+        window_height,
+        window_width);
+}
+
 _Bool toggl_set_proxy_settings(void *context,
                                const _Bool use_proxy,
                                const char_t *proxy_host,
@@ -155,6 +200,12 @@ void toggl_set_update_path(
 
     return app(context)->SetUpdatePath(to_string(path));
 }
+
+char_t *toggl_update_path(
+    void *context) {
+    return copy_string(app(context)->UpdatePath());
+}
+
 
 void toggl_set_environment(
     void *context,
@@ -617,6 +668,20 @@ char_t *toggl_get_update_channel(
     return copy_string(update_channel);
 }
 
+char_t *toggl_get_user_fullname(
+    void *context) {
+
+    std::string fullname = app(context)->UserFullName();
+    return copy_string(fullname);
+}
+
+char_t *toggl_get_user_email(
+    void *context) {
+
+    std::string email = app(context)->UserEmail();
+    return copy_string(email);
+}
+
 int64_t toggl_parse_duration_string_into_seconds(
     const char_t *duration_string) {
     if (!duration_string) {
@@ -632,6 +697,20 @@ void toggl_on_show_app(
     app(context)->UI()->OnDisplayApp(cb);
 }
 
+void toggl_on_sync_state(
+    void *context,
+    TogglDisplaySyncState cb) {
+
+    app(context)->UI()->OnDisplaySyncState(cb);
+}
+
+void toggl_on_unsynced_items(
+    void *context,
+    TogglDisplayUnsyncedItems cb) {
+
+    app(context)->UI()->OnDisplayUnsyncedItems(cb);
+}
+
 void toggl_on_error(
     void *context,
     TogglDisplayError cb) {
@@ -644,6 +723,13 @@ void toggl_on_online_state(
     TogglDisplayOnlineState cb) {
 
     app(context)->UI()->OnDisplayOnlineState(cb);
+}
+
+void toggl_on_update(
+    void *context,
+    TogglDisplayUpdate cb) {
+
+    app(context)->UI()->OnDisplayUpdate(cb);
 }
 
 void toggl_on_url(
@@ -759,12 +845,6 @@ void toggl_on_idle_notification(
     app(context)->UI()->OnDisplayIdleNotification(cb);
 }
 
-void toggl_on_update(
-    void *context,
-    TogglDisplayUpdate cb) {
-    app(context)->UI()->OnDisplayUpdate(cb);
-}
-
 void toggl_debug(const char_t *text) {
     logger().debug(to_string(text));
 }
@@ -805,7 +885,6 @@ void toggl_set_idle_seconds(
     }
 }
 
-#ifndef _WIN32
 char_t *toggl_run_script(
     void *context,
     const char* script,
@@ -817,9 +896,13 @@ char_t *toggl_run_script(
     lua_settop(L, 0);
 
     *err = luaL_loadstring(L, script);
+    if (*err) {
+        return copy_string(lua_tostring(L, -1));
+    }
 
-    if (!*err) {
-        *err = lua_pcall(L, 0, LUA_MULTRET, 0);
+    *err = lua_pcall(L, 0, LUA_MULTRET, 0);
+    if (*err) {
+        return copy_string(lua_tostring(L, -1));
     }
 
     int argc = lua_gettop(L);
@@ -845,7 +928,6 @@ char_t *toggl_run_script(
 
     return copy_string(ss.str());
 }
-#endif
 
 void testing_sleep(
     const int seconds) {
