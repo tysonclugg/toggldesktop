@@ -12,7 +12,7 @@
 #define kCheckUpdateIntervalSeconds 86400
 #define kRequestThrottleSeconds 2
 #define kTimerStartInterval 10
-#define kTimelineSecondsToKeep 604800
+#define kTimelineSecondsToKeep 2419200 // 28 days
 #define kWindowFocusThresholdSeconds 10
 #define kBetaChannelPercentage 25
 #define kTimelineChunkSeconds 900
