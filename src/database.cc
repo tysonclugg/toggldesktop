@@ -3510,7 +3510,7 @@ error Database::migrateSettings() {
     err = migrate(
         "settings.remind_mon",
         "ALTER TABLE settings "
-        "ADD COLUMN remind_mon integer not null default 0;");
+        "ADD COLUMN remind_mon integer not null default 1;");
     if (err != noError) {
         return err;
     }
@@ -3518,7 +3518,7 @@ error Database::migrateSettings() {
     err = migrate(
         "settings.remind_tue",
         "ALTER TABLE settings "
-        "ADD COLUMN remind_tue integer not null default 0;");
+        "ADD COLUMN remind_tue integer not null default 1;");
     if (err != noError) {
         return err;
     }
@@ -3526,7 +3526,7 @@ error Database::migrateSettings() {
     err = migrate(
         "settings.remind_wed",
         "ALTER TABLE settings "
-        "ADD COLUMN remind_wed integer not null default 0;");
+        "ADD COLUMN remind_wed integer not null default 1;");
     if (err != noError) {
         return err;
     }
@@ -3534,7 +3534,7 @@ error Database::migrateSettings() {
     err = migrate(
         "settings.remind_thu",
         "ALTER TABLE settings "
-        "ADD COLUMN remind_thu integer not null default 0;");
+        "ADD COLUMN remind_thu integer not null default 1;");
     if (err != noError) {
         return err;
     }
@@ -3542,7 +3542,7 @@ error Database::migrateSettings() {
     err = migrate(
         "settings.remind_fri",
         "ALTER TABLE settings "
-        "ADD COLUMN remind_fri integer not null default 0;");
+        "ADD COLUMN remind_fri integer not null default 1;");
     if (err != noError) {
         return err;
     }
@@ -3550,7 +3550,7 @@ error Database::migrateSettings() {
     err = migrate(
         "settings.remind_sat",
         "ALTER TABLE settings "
-        "ADD COLUMN remind_sat integer not null default 0;");
+        "ADD COLUMN remind_sat integer not null default 1;");
     if (err != noError) {
         return err;
     }
@@ -3558,7 +3558,7 @@ error Database::migrateSettings() {
     err = migrate(
         "settings.remind_sun",
         "ALTER TABLE settings "
-        "ADD COLUMN remind_sun integer not null default 0;");
+        "ADD COLUMN remind_sun integer not null default 1;");
     if (err != noError) {
         return err;
     }
@@ -3923,7 +3923,11 @@ error Database::selectUnompressedTimelineEvents(
         return noError;
     }
 
-    time_t chunk_up_to = time(0) - kTimelineChunkSeconds;
+    // then find the chunk start time of current time.
+    // now process only events that are older that this chunk start time.
+    // else we will have no full chunks to compress.
+    time_t chunk_up_to =
+        (time(0) / kTimelineChunkSeconds) * kTimelineChunkSeconds;
 
     {
         std::stringstream s;
